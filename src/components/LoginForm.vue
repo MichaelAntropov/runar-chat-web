@@ -1,0 +1,85 @@
+<script setup lang="ts">
+import type { AuthRequest } from '@/auth/interfaces/AuthRequest'
+import type { AuthResponse } from '@/auth/interfaces/AuthResponse'
+import { useUserStore } from '@/user/UserStorage'
+import { reactive } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+const userStore = useUserStore()
+
+const userCredentials = reactive({
+  username: '',
+  password: '',
+})
+
+async function logIn() {
+  await authenticate(userCredentials.username, userCredentials.password).then(() => {
+    console.log('Go to /chat')
+    router.push('/chat')
+  })
+}
+
+async function authenticate(username: string, password: string) {
+  await postAuth({ username, password }).then((response) => {
+    userStore.isAuthenticated = true
+    userStore.refreshToken = response.refreshToken
+    userStore.accessToken = response.accessToken
+    console.log('Authenticated')
+  })
+}
+
+async function postAuth(data: AuthRequest): Promise<AuthResponse> {
+  const response = await fetch('/api/v1/auth', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! Status: ${response.status}`)
+  }
+
+  return await response.json()
+}
+</script>
+
+<template>
+  <div class="d-flex justify-content-center align-items-center min-vh-100">
+    <div class="card p-4 shadow">
+      <h2 class="text-center mb-4">Login</h2>
+      <form>
+        <div class="mb-3">
+          <label for="username" class="form-label">Username</label>
+          <input
+            type="text"
+            id="username"
+            class="form-control"
+            v-model="userCredentials.username"
+            required
+          />
+        </div>
+        <div class="mb-3">
+          <label for="password" class="form-label">Password</label>
+          <input
+            type="password"
+            id="password"
+            class="form-control"
+            v-model="userCredentials.password"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-primary w-100" @click.prevent="logIn">Log In</button>
+      </form>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.card {
+  border-radius: 10px;
+  width: 350px;
+}
+</style>
