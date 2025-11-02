@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import LandingScreen from './components/LandingScreen.vue'
-import LoginScreen from './components/LoginScreen.vue'
-import ChatScreen from './components/ChatScreen.vue'
+import LandingScreen from '@/components/LandingScreen.vue'
+import LoginScreen from '@/components/LoginScreen.vue'
+import ChatScreen from '@/components/ChatScreen.vue'
 import { useUserStore } from './user/UserStorage'
 
 const routes = [

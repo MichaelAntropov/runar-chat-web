@@ -5,10 +5,10 @@ import SideBarContent from './SideBarContent.vue'
 import ChatView from './ChatView.vue'
 import LoadingOverlay from './LoadingOverlay.vue'
 import { useDeviceStore } from '@/device/DeviceStorage'
-import { useConnectionService } from '@/connection/ConnectionService'
+import { useConnectionStore } from '@/connection/ConnectionStore'
 
 const deviceStore = useDeviceStore()
-useConnectionService()
+useConnectionStore()
 
 const sidebarWidth: Ref<number> = ref(400)
 const isResizing: Ref<boolean> = ref(false)
