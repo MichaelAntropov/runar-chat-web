@@ -3,8 +3,8 @@ import { ref, type Ref } from 'vue'
 import type { Chat } from './interfaces/chat/Chat'
 import type { Contact } from '../contacts/Contact'
 import type { StoredMessage } from './interfaces/chat/StoredMessage'
-import { db, MESSAGES_STORE } from '../db/DbStorage'
-import Dexie from 'dexie'
+import { db, MESSAGES_STORE } from '../db/veilDB'
+import { messageRepository } from '@/db/repositories/MessageRepository'
 
 export const MESSAGE_LOAD_COUNT = 15
 export const MESSAGE_LOAD_STEP = 5
@@ -26,27 +26,26 @@ export const useChatsStore = defineStore(
 
       if (chat.loadLatest) {
         console.log('loadMessagesFromDB() - Load latest messages')
-        // https://github.com/dexie/Dexie.js/issues/167
-        const storedMessages = await db[MESSAGES_STORE].where('[chatId+createdAt]')
-          .between([chat.id, Dexie.minKey], [chat.id, Dexie.maxKey])
-          .reverse()
-          .offset(0)
-          .limit(MESSAGE_LOAD_COUNT + 2 * MESSAGE_LOAD_STEP)
-          .toArray()
+        const size: number = MESSAGE_LOAD_COUNT + 2 * MESSAGE_LOAD_STEP
+        const storedMessages: StoredMessage[] = await messageRepository.getLatestByChatId(
+          chat.id,
+          size,
+        )
 
         currentChatMessages.value = storedMessages.reverse()
 
-        const totalMsgCount = await db[MESSAGES_STORE].where('chatId').equals(chat.id).count()
+        const totalMsgCount: number = await messageRepository.countByChatId(chat.id)
         if (totalMsgCount > MESSAGE_LOAD_COUNT + 2 * MESSAGE_LOAD_STEP) {
           chat.messagesOffset = -1
         }
       } else {
         console.log('loadMessagesFromDB() - Load offset messages')
-        const storedMessages = await db[MESSAGES_STORE].where('[chatId+createdAt]')
-          .between([chat.id, Dexie.minKey], [chat.id, Dexie.maxKey])
-          .offset(chat.messagesOffset)
-          .limit(MESSAGE_LOAD_COUNT + 2 * MESSAGE_LOAD_STEP)
-          .toArray()
+        const sizeToLoad = MESSAGE_LOAD_COUNT + 2 * MESSAGE_LOAD_STEP
+        const storedMessages = await messageRepository.getByChatIdOrderByCratedAtAsc(
+          chat.id,
+          chat.messagesOffset,
+          sizeToLoad,
+        )
 
         currentChatMessages.value = storedMessages
       }
@@ -60,7 +59,7 @@ export const useChatsStore = defineStore(
         return
       }
 
-      const totalMsgCount = await db[MESSAGES_STORE].where('chatId').equals(chat.id).count()
+      const totalMsgCount = await messageRepository.countByChatId(chat.id)
       const currentLength = currentChatMessages.value.length
 
       if (totalMsgCount <= currentLength) {
@@ -81,11 +80,12 @@ export const useChatsStore = defineStore(
         offset = 0
       }
 
-      const storedMessages = await db[MESSAGES_STORE].where('[chatId+createdAt]')
-        .between([chat.id, Dexie.minKey], [chat.id, Dexie.maxKey])
-        .offset(offset)
-        .limit(MESSAGE_LOAD_COUNT + 2 * MESSAGE_LOAD_STEP)
-        .toArray()
+      const sizeToLoad = MESSAGE_LOAD_COUNT + 2 * MESSAGE_LOAD_STEP
+      const storedMessages = await messageRepository.getByChatIdOrderByCratedAtAsc(
+        chat.id,
+        offset,
+        sizeToLoad,
+      )
 
       chat.loadLatest = false
       chat.messagesOffset = offset
@@ -103,7 +103,7 @@ export const useChatsStore = defineStore(
         return
       }
 
-      const totalMsgCount = await db[MESSAGES_STORE].where('chatId').equals(chat.id).count()
+      const totalMsgCount = await messageRepository.countByChatId(chat.id)
       const currentLength = currentChatMessages.value.length
 
       if (totalMsgCount <= currentLength) {
@@ -117,12 +117,12 @@ export const useChatsStore = defineStore(
       }
 
       const offset = chat.messagesOffset + MESSAGE_LOAD_STEP
-
-      const storedMessages = await db[MESSAGES_STORE].where('[chatId+createdAt]')
-        .between([chat.id, Dexie.minKey], [chat.id, Dexie.maxKey])
-        .offset(offset)
-        .limit(MESSAGE_LOAD_COUNT + 2 * MESSAGE_LOAD_STEP)
-        .toArray()
+      const sizeToLoad = MESSAGE_LOAD_COUNT + 2 * MESSAGE_LOAD_STEP
+      const storedMessages = await messageRepository.getByChatIdOrderByCratedAtAsc(
+        chat.id,
+        offset,
+        sizeToLoad,
+      )
 
       chat.messagesOffset = offset
       currentChatMessages.value = storedMessages

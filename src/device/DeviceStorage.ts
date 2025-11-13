@@ -9,7 +9,7 @@ import type { RegisterDeviceRequest } from '@/device/RegisterDeviceRequest'
 import { Base64 } from 'js-base64'
 import type { RegisterDeviceResponse } from '@/device/RegisterDeviceResponses'
 import type { KeyBundle } from './interfaces/KeyBundle'
-import { db, KEYS_STORE, PRE_KEYS_STORE, IDENTITY_KEY_BUNDLE_KEY } from '../db/DbStorage'
+import { db, KEYS_STORE, PRE_KEYS_STORE, IDENTITY_KEY_BUNDLE_KEY } from '../db/veilDB'
 
 export type DeviceRegistrationStatus =
   | 'loading'

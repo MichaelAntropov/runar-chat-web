@@ -1,4 +1,4 @@
-import { base64ToUint8Array } from '@/chat/ChatService'
+import { base64ToUint8Array } from '@/core/utils'
 import type { WebsocketMessage } from './WebsocketMessage'
 
 export interface InboundMessage {
