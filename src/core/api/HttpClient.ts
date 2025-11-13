@@ -22,7 +22,7 @@ http.interceptors.request.use(
 )
 
 http.interceptors.response.use(
-  (response) => response.data,
+  (response) => response,
   (error) => {
     console.error('HttpClient - API error:', error)
     throw error

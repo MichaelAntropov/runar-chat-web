@@ -3,9 +3,7 @@ import { useChatsStore } from './ChatStorage'
 import { useDeviceStore } from '../device/DeviceStorage'
 import type {
   InitDeviceKeyBundle,
-  InitDeviceKeyBundleResponse,
   InitKeyBundle,
-  InitKeyBundleResponse,
 } from './interfaces/key-bundle/InitKeyBundleResponse'
 import { useUserStore } from '@/user/UserStorage'
 import type { Chat } from '@/chat/interfaces/chat/Chat'
@@ -16,10 +14,6 @@ import type { StoredMessage } from '@/chat/interfaces/chat/StoredMessage'
 import type { OfflineMessagesResponses } from './interfaces/message/MessagesResponse'
 import type { OfflineMessage } from './interfaces/message/OfflineMessage'
 import type { OneTimePreKeyState } from '@/device/interfaces/OneTimePreKeyState'
-import type {
-  IdentityKeyResponse,
-  IdentityKeysResponse,
-} from './interfaces/identity-key/IdentityKeysResponse'
 import type { IdentityKey } from './interfaces/identity-key/IdentityKey'
 import { useContactsStore } from '@/contacts/ContactsStorage'
 import type { InboundMessage } from './interfaces/message/InboundMessage'
@@ -40,6 +34,7 @@ import {
 import { chatStateRepository } from '@/db/repositories/ChatStateRepository'
 import { messageRepository } from '@/db/repositories/MessageRepository'
 import { preKeyRepository } from '@/db/repositories/PreKeyRepository'
+import { chatApi } from './api/chatApi'
 
 const APPLICATION_INFO_STRING = 'QuarkusChatSecure'
 
@@ -123,7 +118,8 @@ export const useChatService = defineStore('chat-service', () => {
       deviceMessages: messagePayloads,
     }
 
-    const response: SendMessageResponse = await sendMessagePayload(messagePayload)
+    const response: SendMessageResponse = (await chatApi.postSendMessagePayload(messagePayload))
+      .data
     console.log(`Send messages payload response: `)
     console.log(response)
 
@@ -314,7 +310,7 @@ export const useChatService = defineStore('chat-service', () => {
       if (!oneTimePreKey) throw new Error('One Time Pre Key Used but not found!')
     }
 
-    const senderIdentityKeys: IdentityKey[] = await getIdentityKeys(senderUserId)
+    const senderIdentityKeys: IdentityKey[] = await chatApi.getIdentityKeys(senderUserId)
     const senderDeviceIdentityKey: IdentityKey | undefined = senderIdentityKeys.find(
       (v) => v.deviceId === senderDeviceId,
     )
@@ -438,7 +434,7 @@ export const useChatService = defineStore('chat-service', () => {
 
   async function establishChatStateForChat(chat: Chat) {
     console.log('Get key bundles...')
-    const keyBundles: InitKeyBundle = await getKeyBundle(chat.contact.userId)
+    const keyBundles: InitKeyBundle = await chatApi.getKeyBundle(chat.contact.userId)
 
     const verifications: boolean[] = await Promise.all(
       keyBundles.keyBundles.map((bundle: InitDeviceKeyBundle) => {
@@ -598,93 +594,6 @@ export const useChatService = defineStore('chat-service', () => {
       preKeyPublic: keyBundle.preKey,
       ephemeralPublicBytes: new Uint8Array(senderEphemeralKeyPublic),
     }
-  }
-
-  async function getIdentityKeys(userId: string): Promise<IdentityKey[]> {
-    const response = await fetch(`/api/v1/keys/identity-keys/${userId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + (await userStore.getAccessToken()),
-      },
-    })
-
-    if (!response.ok) {
-      const errorBody = await response.text() // Try to get more error details
-      console.error('getIdentityKeys() - error body:', errorBody)
-      throw new Error(`getIdentityKeys() error! Status: ${response.status}`)
-    }
-
-    const result: IdentityKeysResponse = await response.json()
-
-    const parsedIdentityKeys: Array<IdentityKey> = []
-    for (let i = 0; i < result.identityKeys.length; i++) {
-      const identityKey: IdentityKeyResponse = result.identityKeys[i]
-      const identityKeyParsed: IdentityKey = {
-        deviceId: identityKey.deviceId,
-        x25519PublicKey: base64ToUint8Array(identityKey.x25519PublicKey),
-        ed25519PublicKey: base64ToUint8Array(identityKey.ed25519PublicKey),
-      }
-      parsedIdentityKeys.push(identityKeyParsed)
-    }
-
-    return parsedIdentityKeys
-  }
-
-  async function getKeyBundle(userId: string): Promise<InitKeyBundle> {
-    const response = await fetch(`/api/v1/keys/key-bundle/${userId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + (await userStore.getAccessToken()),
-      },
-    })
-
-    if (!response.ok) {
-      const errorBody = await response.text() // Try to get more error details
-      console.error('getKeyBundle() - error body:', errorBody)
-      throw new Error(`getKeyBundle() error! Status: ${response.status}`)
-    }
-
-    const result: InitKeyBundleResponse = await response.json()
-    const parsedKeyBundles: Array<InitDeviceKeyBundle> = []
-    for (let i = 0; i < result.keyBundles.length; i++) {
-      const keyBundle: InitDeviceKeyBundleResponse = result.keyBundles[i]
-      const keyBundleParsed: InitDeviceKeyBundle = {
-        deviceId: keyBundle.deviceId,
-
-        x25519identityKey: base64ToUint8Array(keyBundle.x25519identityKey),
-        ed25519identityKey: base64ToUint8Array(keyBundle.ed25519identityKey),
-        preKey: base64ToUint8Array(keyBundle.preKey),
-        preKeySignature: base64ToUint8Array(keyBundle.preKeySignature),
-
-        oneTimePreKeyId: keyBundle.oneTimePreKeyId,
-        oneTimePreKey: base64ToUint8Array(keyBundle.oneTimePreKey),
-      }
-      parsedKeyBundles.push(keyBundleParsed)
-    }
-
-    return { keyBundles: parsedKeyBundles }
-  }
-
-  async function sendMessagePayload(payload: MessagePayload): Promise<SendMessageResponse> {
-    const response = await fetch('/api/v1/messages/send-message', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + (await userStore.getAccessToken()),
-      },
-      body: JSON.stringify(payload),
-    })
-
-    if (!response.ok) {
-      const errorBody = await response.text() // Try to get more error details
-      console.error('sendMessagesPayload() - API error body:', errorBody)
-      throw new Error(`sendMessagesPayload() - HTTP error! Status: ${response.status}`)
-    }
-
-    const result: SendMessageResponse = await response.json()
-    return result
   }
 
   return {
