@@ -3,7 +3,6 @@ import { ref, type Ref } from 'vue'
 import type { Chat } from './interfaces/chat/Chat'
 import type { Contact } from '../contacts/Contact'
 import type { StoredMessage } from './interfaces/chat/StoredMessage'
-import { db, MESSAGES_STORE } from '../db/veilDB'
 import { messageRepository } from '@/db/repositories/MessageRepository'
 
 export const MESSAGE_LOAD_COUNT = 15
@@ -137,7 +136,8 @@ export const useChatsStore = defineStore(
     }
 
     async function addMessageToChat(chat: Chat, message: StoredMessage) {
-      db[MESSAGES_STORE].add(message, message.id)
+      messageRepository
+        .saveMessage(message)
         .then(() => {
           console.log(`Message added id=${message.id} to chat with id=${chat.id}`)
           if (chat.id === currentChat.value?.id && chat.autoScroll) {

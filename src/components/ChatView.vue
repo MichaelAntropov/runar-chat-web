@@ -3,15 +3,13 @@ import { nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vu
 import MessageBubble from './MessageBubble.vue'
 import { MESSAGE_LOAD_STEP, useChatsStore } from '@/chat/ChatStorage'
 import { useUserStore } from '@/user/UserStorage'
-import { useChatService } from '@/chat/ChatService'
+import { sendMessageInCurrentChat } from '@/chat/ChatService'
 
 const messageTextArea = useTemplateRef<HTMLTextAreaElement>('message-text-area')
 const messagesContainer = ref<HTMLElement>()
 
 const userStore = useUserStore()
 const chatStore = useChatsStore()
-
-const chatService = useChatService()
 
 const adjustMessageTextAreaHeight = () => {
   if (messageTextArea.value !== null) {
@@ -144,7 +142,7 @@ async function sendMessage() {
     return
   }
 
-  await chatService.sendMessageInCurrentChat(messageTextArea.value?.value)
+  await sendMessageInCurrentChat(messageTextArea.value?.value)
   await chatStore.loadMessagesFromDB()
 
   messageTextArea.value.value = ''

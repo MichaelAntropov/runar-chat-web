@@ -1,4 +1,3 @@
-import { useChatService } from '@/chat/ChatService'
 import {
   inboundMessageFromWebsocketMessage,
   type InboundMessage,
@@ -9,11 +8,14 @@ import { useUserStore } from '@/user/UserStorage'
 import { defineStore } from 'pinia'
 import { ref, watch, type Ref } from 'vue'
 import { WebsocketConnection, type WebSocketConnectionStatus } from './WebsocketConnection'
+import {
+  decryptInboundMessageAndPushToChat,
+  fetchAndDecryptOfflineMessages,
+} from '@/chat/ChatService'
 
 export const useConnectionStore = defineStore('connection-store', () => {
   const userStore = useUserStore()
   const deviceStore = useDeviceStore()
-  const chatService = useChatService()
 
   const webSocketConnectionStatus: Ref<WebSocketConnectionStatus> = ref('none')
 
@@ -27,7 +29,7 @@ export const useConnectionStore = defineStore('connection-store', () => {
     onMessage: (event: MessageEvent) => {
       const websocketMessage: WebsocketMessage = JSON.parse(event.data)
       const inboundMessage: InboundMessage = inboundMessageFromWebsocketMessage(websocketMessage)
-      chatService.decryptInboundMessageAndPushToChat(inboundMessage)
+      decryptInboundMessageAndPushToChat(inboundMessage)
     },
   })
 
@@ -36,7 +38,7 @@ export const useConnectionStore = defineStore('connection-store', () => {
     const { isAuthenticated } = userStore
 
     if (isAuthenticated && registrationStatus === 'registered' && deviceId) {
-      await chatService.fetchAndDecryptOfflineMessages()
+      await fetchAndDecryptOfflineMessages()
     }
   }
 
