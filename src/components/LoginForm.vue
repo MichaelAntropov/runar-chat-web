@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { AuthRequest } from '@/auth/interfaces/AuthRequest'
-import type { AuthResponse } from '@/auth/interfaces/AuthResponse'
-import { useUserStore } from '@/user/UserStorage'
+import type { AuthRequest } from '@/auth/types/AuthRequest'
+import type { AuthResponse } from '@/auth/types/AuthResponse'
+import { useUserStore } from '@/user/userStore'
 import { reactive } from 'vue'
 import { useRouter } from 'vue-router'
 

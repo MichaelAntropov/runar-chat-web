@@ -1,5 +1,5 @@
 import { uint8ArrayToBase64, arraysEqual } from '@/core/utils'
-import type { ChatState } from '../interfaces/chat/ChatState'
+import type { ChatState } from '../types/chat/ChatState'
 import type { KdfCkPair } from './types/KdfCkPair'
 import type { KdfRkPair } from './types/KdfRkPair'
 import type { ParsedHeader } from './types/ParsedHeader'

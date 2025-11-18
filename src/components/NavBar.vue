@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useUserStore } from '@/user/UserStorage'
+import { useUserStore } from '@/user/userStore'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 

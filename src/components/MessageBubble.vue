@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, type ComputedRef } from 'vue'
-import { useUserStore } from '@/user/UserStorage'
-import type { StoredMessage } from '@/chat/interfaces/chat/StoredMessage'
+import { useUserStore } from '@/user/userStore'
+import type { StoredMessage } from '@/chat/types/chat/StoredMessage'
 
 interface Props {
   message: StoredMessage

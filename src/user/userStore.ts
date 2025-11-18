@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch, type Ref } from 'vue'
-import type { RefreshResponse } from '../auth/interfaces/RefreshResponse'
-import type { Principal } from '../auth/interfaces/Principal'
+import type { RefreshResponse } from '../auth/types/RefreshResponse'
+import type { Principal } from '../auth/types/Principal'
 
 export const useUserStore = defineStore('user', () => {
   const isAuthenticated: Ref<boolean> = ref(false)

@@ -1,4 +1,4 @@
-import type { ChatState } from '@/chat/interfaces/chat/ChatState'
+import type { ChatState } from '@/chat/types/chat/ChatState'
 import { db, CHAT_STATES_STORE } from '../veilDB'
 
 export class ChatStateRepository {

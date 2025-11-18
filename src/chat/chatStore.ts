@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
-import type { Chat } from './interfaces/chat/Chat'
-import type { Contact } from '../contacts/Contact'
-import type { StoredMessage } from './interfaces/chat/StoredMessage'
+import type { Chat } from './types/chat/Chat'
+import type { Contact } from '../contacts/types/Contact'
+import type { StoredMessage } from './types/chat/StoredMessage'
 import { messageRepository } from '@/db/repositories/messageRepository'
 
 export const MESSAGE_LOAD_COUNT = 15

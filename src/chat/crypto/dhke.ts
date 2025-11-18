@@ -1,8 +1,8 @@
-import type { KeyPairState } from '@/device/interfaces/KeyPairState '
-import type { GeneratedSecretKeyBundle } from '../interfaces/key-bundle/GeneratedSecretKeyBundle'
-import type { InitDeviceKeyBundle } from '../interfaces/key-bundle/InitKeyBundleResponse'
-import type { OneTimePreKeyState } from '@/device/interfaces/OneTimePreKeyState'
-import type { IdentityKey } from '../interfaces/identity-key/IdentityKey'
+import type { KeyPairState } from '@/device/types/KeyPairState '
+import type { GeneratedSecretKeyBundle } from '../types/key-bundle/GeneratedSecretKeyBundle'
+import type { InitDeviceKeyBundle } from '../types/key-bundle/InitKeyBundleResponse'
+import type { OneTimePreKeyState } from '@/device/types/OneTimePreKeyState'
+import type { IdentityKey } from '../types/identity-key/IdentityKey'
 
 const APPLICATION_INFO_STRING = 'QuarkusChatSecure'
 

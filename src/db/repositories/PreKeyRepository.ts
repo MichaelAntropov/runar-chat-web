@@ -1,4 +1,4 @@
-import type { OneTimePreKeyState } from '@/device/interfaces/OneTimePreKeyState'
+import type { OneTimePreKeyState } from '@/device/types/OneTimePreKeyState'
 import { db, PRE_KEYS_STORE } from '../veilDB'
 
 export class PreKeyRepository {

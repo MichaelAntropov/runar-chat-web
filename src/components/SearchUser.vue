@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { useChatsStore } from '@/chat/chatStore'
-import type { Contact } from '@/contacts/Contact'
-import { useContactsStore } from '@/contacts/ContactsStorage'
-import { useUserStore } from '@/user/UserStorage'
-import type { FindUserResponse, FoundUser } from '@/contacts/FindUserResponse'
+import type { Contact } from '@/contacts/types/Contact'
+import { useContactsStore } from '@/contacts/contactStore'
+import { useUserStore } from '@/user/userStore'
+import type { FindUserResponse, FoundUser } from '@/contacts/types/FindUserResponse'
 import { ref, watch, type Ref } from 'vue'
 
 const userStore = useUserStore()

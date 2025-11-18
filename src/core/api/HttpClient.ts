@@ -1,4 +1,4 @@
-import { useUserStore } from '@/user/UserStorage'
+import { useUserStore } from '@/user/userStore'
 import axios from 'axios'
 
 export const http = axios.create({

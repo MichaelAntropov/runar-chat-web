@@ -1,8 +1,8 @@
-import type { OneTimePreKeyState } from '../device/interfaces/OneTimePreKeyState'
-import type { StoredMessage } from '../chat/interfaces/chat/StoredMessage'
+import type { OneTimePreKeyState } from '../device/types/OneTimePreKeyState'
+import type { StoredMessage } from '../chat/types/chat/StoredMessage'
 import Dexie, { type EntityTable, type Table } from 'dexie'
-import type { ChatState } from '@/chat/interfaces/chat/ChatState'
-import type { KeyBundle } from '@/device/interfaces/KeyBundle'
+import type { ChatState } from '@/chat/types/chat/ChatState'
+import type { KeyBundle } from '@/device/types/KeyBundle'
 
 const DB_SCHEMA = 'veil-db'
 

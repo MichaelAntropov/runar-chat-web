@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LandingScreen from '@/components/LandingScreen.vue'
 import LoginScreen from '@/components/LoginScreen.vue'
 import ChatScreen from '@/components/ChatScreen.vue'
-import { useUserStore } from './user/UserStorage'
+import { useUserStore } from './user/userStore'
 
 const routes = [
   { path: '/', component: LandingScreen },

@@ -1,5 +1,5 @@
 import { db, MESSAGES_STORE } from '@/db/veilDB'
-import type { StoredMessage } from '../../chat/interfaces/chat/StoredMessage'
+import type { StoredMessage } from '../../chat/types/chat/StoredMessage'
 import { Dexie } from 'dexie'
 
 export class MessageRepository {

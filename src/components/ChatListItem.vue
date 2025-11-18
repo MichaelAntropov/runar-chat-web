@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Chat } from '@/chat/interfaces/chat/Chat'
+import type { Chat } from '@/chat/types/chat/Chat'
 import { useChatsStore } from '@/chat/chatStore'
 import { computed, type ComputedRef } from 'vue'
 

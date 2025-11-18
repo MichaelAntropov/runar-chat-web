@@ -4,7 +4,7 @@ import type { Ref } from 'vue'
 import SideBarContent from './SideBarContent.vue'
 import ChatView from './ChatView.vue'
 import LoadingOverlay from './LoadingOverlay.vue'
-import { useDeviceStore } from '@/device/DeviceStorage'
+import { useDeviceStore } from '@/device/deviceStore'
 import { useConnectionStore } from '@/connection/connectionStore'
 
 const deviceStore = useDeviceStore()

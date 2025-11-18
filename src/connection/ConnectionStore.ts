@@ -1,10 +1,10 @@
 import {
   inboundMessageFromWebsocketMessage,
   type InboundMessage,
-} from '@/chat/interfaces/message/InboundMessage'
-import type { WebsocketMessage } from '@/chat/interfaces/message/WebsocketMessage'
-import { useDeviceStore, type DeviceRegistrationStatus } from '@/device/DeviceStorage'
-import { useUserStore } from '@/user/UserStorage'
+} from '@/chat/types/message/InboundMessage'
+import type { WebsocketMessage } from '@/chat/types/message/WebsocketMessage'
+import { useDeviceStore, type DeviceRegistrationStatus } from '@/device/deviceStore'
+import { useUserStore } from '@/user/userStore'
 import { defineStore } from 'pinia'
 import { ref, watch, type Ref } from 'vue'
 import { WebsocketConnection, type WebSocketConnectionStatus } from './WebsocketConnection'

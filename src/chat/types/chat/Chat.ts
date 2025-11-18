@@ -1,4 +1,4 @@
-import type { Contact } from '../../../contacts/Contact'
+import type { Contact } from '../../../contacts/types/Contact'
 
 export interface Chat {
   id: string

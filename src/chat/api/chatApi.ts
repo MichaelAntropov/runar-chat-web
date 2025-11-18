@@ -1,20 +1,20 @@
-import type { MessagePayload } from '../interfaces/message/MessagePayload'
-import type { SendMessageResponse } from '../interfaces/message/SendMessageResponse'
+import type { MessagePayload } from '../types/message/MessagePayload'
+import type { SendMessageResponse } from '../types/message/SendMessageResponse'
 import type {
   InitDeviceKeyBundle,
   InitDeviceKeyBundleResponse,
   InitKeyBundle,
   InitKeyBundleResponse,
-} from '../interfaces/key-bundle/InitKeyBundleResponse'
-import type { OfflineMessagesResponses } from '../interfaces/message/MessagesResponse'
+} from '../types/key-bundle/InitKeyBundleResponse'
+import type { OfflineMessagesResponses } from '../types/message/MessagesResponse'
 import type {
   IdentityKeyResponse,
   IdentityKeysResponse,
-} from '../interfaces/identity-key/IdentityKeysResponse'
+} from '../types/identity-key/IdentityKeysResponse'
 import { http } from '@/core/api/httpClient'
-import type { IdentityKey } from '../interfaces/identity-key/IdentityKey'
+import type { IdentityKey } from '../types/identity-key/IdentityKey'
 import { base64ToUint8Array } from '@/core/utils'
-import type { OfflineMessage } from '../interfaces/message/OfflineMessage'
+import type { OfflineMessage } from '../types/message/OfflineMessage'
 import type { AxiosPromise } from 'axios'
 
 export const chatApi = {

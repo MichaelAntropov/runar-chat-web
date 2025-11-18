@@ -2,7 +2,7 @@
 import { nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
 import MessageBubble from './MessageBubble.vue'
 import { MESSAGE_LOAD_STEP, useChatsStore } from '@/chat/chatStore'
-import { useUserStore } from '@/user/UserStorage'
+import { useUserStore } from '@/user/userStore'
 import { sendMessageInCurrentChat } from '@/chat/chatService'
 
 const messageTextArea = useTemplateRef<HTMLTextAreaElement>('message-text-area')
