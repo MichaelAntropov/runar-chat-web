@@ -4,6 +4,7 @@ import type { Chat } from './types/chat/Chat'
 import type { Contact } from '../contacts/types/Contact'
 import type { StoredMessage } from './types/chat/StoredMessage'
 import { messageRepository } from '@/db/repositories/messageRepository'
+import { useContactsStore } from '@/contacts/contactStore'
 
 export const MESSAGE_LOAD_COUNT = 15
 export const MESSAGE_LOAD_STEP = 5
@@ -198,12 +199,22 @@ export const useChatsStore = defineStore(
       storage: localStorage,
       pick: ['chats', 'currentChat'],
       afterHydrate: (ctx) => {
-        // Restore reference
+        // Restore references
         // https://prazdevs.github.io/pinia-plugin-persistedstate/guide/limitations.html#references-are-not-persisted
         const chats: Array<Chat> = ctx.store.$state['chats']
         const currentChat: Chat | null | undefined = ctx.store.$state['currentChat']
+
         if (currentChat) {
           ctx.store.$state['currentChat'] = chats.find((val) => val.id === currentChat.id)
+        }
+
+        const contactsStore = useContactsStore()
+        for (const chat of chats) {
+          const contactUserId = chat.contact.userId
+          const contactRef = contactsStore.contacts.find((c) => c.userId === contactUserId)
+          if (contactRef) {
+            chat.contact = contactRef
+          }
         }
       },
     },
