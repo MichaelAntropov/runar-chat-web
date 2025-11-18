@@ -1,4 +1,4 @@
-import { useChatsStore } from './ChatStorage'
+import { useChatsStore } from './chatStore'
 import { useDeviceStore } from '../device/DeviceStorage'
 import type { InitKeyBundle } from './interfaces/key-bundle/InitKeyBundleResponse'
 import { useUserStore } from '@/user/UserStorage'
@@ -26,8 +26,8 @@ import {
   ratchetDecrypt,
   ratchetEncrypt,
 } from './crypto/ratchet'
-import { chatStateRepository } from '@/db/repositories/ChatStateRepository'
-import { preKeyRepository } from '@/db/repositories/PreKeyRepository'
+import { chatStateRepository } from '@/db/repositories/chatStateRepository'
+import { preKeyRepository } from '@/db/repositories/preKeyRepository'
 import { chatApi } from './api/chatApi'
 
 /**

@@ -11,7 +11,7 @@ import { WebsocketConnection, type WebSocketConnectionStatus } from './Websocket
 import {
   decryptInboundMessageAndPushToChat,
   fetchAndDecryptOfflineMessages,
-} from '@/chat/ChatService'
+} from '@/chat/chatService'
 
 export const useConnectionStore = defineStore('connection-store', () => {
   const userStore = useUserStore()

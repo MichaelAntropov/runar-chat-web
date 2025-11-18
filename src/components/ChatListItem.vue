@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Chat } from '@/chat/interfaces/chat/Chat'
-import { useChatsStore } from '@/chat/ChatStorage'
+import { useChatsStore } from '@/chat/chatStore'
 import { computed, type ComputedRef } from 'vue'
 
 const props = defineProps<{

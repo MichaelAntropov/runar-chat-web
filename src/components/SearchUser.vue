@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useChatsStore } from '@/chat/ChatStorage'
+import { useChatsStore } from '@/chat/chatStore'
 import type { Contact } from '@/contacts/Contact'
 import { useContactsStore } from '@/contacts/ContactsStorage'
 import { useUserStore } from '@/user/UserStorage'

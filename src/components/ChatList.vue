@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useChatsStore } from '@/chat/ChatStorage'
+import { useChatsStore } from '@/chat/chatStore'
 import ChatListItem from './ChatListItem.vue'
 
 const chatStore = useChatsStore()

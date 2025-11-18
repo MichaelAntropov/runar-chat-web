@@ -5,7 +5,7 @@ import SideBarContent from './SideBarContent.vue'
 import ChatView from './ChatView.vue'
 import LoadingOverlay from './LoadingOverlay.vue'
 import { useDeviceStore } from '@/device/DeviceStorage'
-import { useConnectionStore } from '@/connection/ConnectionStore'
+import { useConnectionStore } from '@/connection/connectionStore'
 
 const deviceStore = useDeviceStore()
 useConnectionStore()

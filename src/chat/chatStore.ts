@@ -3,7 +3,7 @@ import { ref, type Ref } from 'vue'
 import type { Chat } from './interfaces/chat/Chat'
 import type { Contact } from '../contacts/Contact'
 import type { StoredMessage } from './interfaces/chat/StoredMessage'
-import { messageRepository } from '@/db/repositories/MessageRepository'
+import { messageRepository } from '@/db/repositories/messageRepository'
 
 export const MESSAGE_LOAD_COUNT = 15
 export const MESSAGE_LOAD_STEP = 5
