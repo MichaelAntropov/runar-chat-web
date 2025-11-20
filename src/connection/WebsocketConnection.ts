@@ -108,8 +108,26 @@ export class WebsocketConnection {
     this.scheduleReconnect()
   }
 
-  private handleClose = (): void => {
-    console.log('[websocket-service] - The connection has been closed.')
+  private handleClose = (event?: CloseEvent): void => {
+    console.log('[websocket-service] - The connection has been closed: ', event)
+
+    if (event) {
+      if (event.code === 4001) {
+        console.error(`[websocket-service] - Provided device is not registered.`)
+        this.updateStatus('error')
+        this.cleanupSocket()
+        return
+      }
+      if (event.code === 4002) {
+        console.error(
+          `[websocket-service] - Connection with provided device is already established.`,
+        )
+        this.updateStatus('error')
+        this.cleanupSocket()
+        return
+      }
+    }
+
     this.updateStatus('closed')
     this.cleanupSocket()
     this.scheduleReconnect()
