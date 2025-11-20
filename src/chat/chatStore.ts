@@ -158,7 +158,7 @@ export const useChatsStore = defineStore(
       }
 
       const newChat: Chat = {
-        id: window.crypto.randomUUID(),
+        id: contact.userId,
         contact: contact,
         lastMessage: null,
         lastMessageTime: null,

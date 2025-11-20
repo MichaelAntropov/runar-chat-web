@@ -29,6 +29,8 @@ import {
 import { chatStateRepository } from '@/db/repositories/chatStateRepository'
 import { preKeyRepository } from '@/db/repositories/preKeyRepository'
 import { chatApi } from './api/chatApi'
+import { contactApi } from '@/contacts/contactApi'
+import type { FoundUser } from '@/contacts/types/FindUserResponse'
 
 /**
  * Encrypts and sends a message to the user in the currently selected chat.
@@ -147,14 +149,37 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
   const contactStore = useContactsStore()
 
   if (!userStore.principal || !deviceStore.deviceId) {
-    console.log('decryptInboundMessageAndPushToChat() - No principal/device setup!')
+    console.log('decryptInboundMessageAndPushToChat() - No principal/local device setup!')
     return
   }
 
   const existingContact = contactStore.contacts.find((v) => v.userId === msg.senderId)
-  const chat = chatStore.chats.find((chat) => chat.contact.userId === msg.senderId)
+  let chat = chatStore.chats.find((chat) => chat.contact.userId === msg.senderId)
   if (!existingContact || !chat) {
-    console.warn('decryptInboundMessageAndPushToChat() - No existing contact/chat!')
+    if (!existingContact && !chat) {
+      console.log(
+        `decryptInboundMessageAndPushToChat() - No contact & chat found for userId=${msg.senderId}. Creating...`,
+      )
+      await createContactAndChatForUserId(msg.senderId)
+      chat = chatStore.chats.find((chat) => chat.contact.userId === msg.senderId)
+    } else if (!chat && existingContact) {
+      console.log(
+        `decryptInboundMessageAndPushToChat() - No chat found for userId=${msg.senderId}. Creating...`,
+      )
+      await chatStore.createNewChatFromContact(existingContact)
+      chat = chatStore.chats.find((chat) => chat.contact.userId === msg.senderId)
+    } else {
+      console.error(
+        `decryptInboundMessageAndPushToChat() - No contact found but chat exists for userId=${msg.senderId}.`,
+      )
+      return
+    }
+  }
+
+  if (!chat) {
+    console.error(
+      `decryptInboundMessageAndPushToChat() - Could not create/find chat for userId=${msg.senderId}.`,
+    )
     return
   }
 
@@ -265,6 +290,20 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
   }
 
   chatStore.addMessageToChat(chat, newStoredMessage)
+}
+
+async function createContactAndChatForUserId(userId: string) {
+  const foundUser: FoundUser = (await contactApi.getUserByUserId(userId)).data
+
+  const newContact = {
+    userId: foundUser.id,
+    username: foundUser.username,
+  }
+  const contactsStore = useContactsStore()
+  contactsStore.addNewContact(newContact)
+
+  const chatStore = useChatsStore()
+  chatStore.createNewChatFromContact(newContact)
 }
 
 async function fetchOfflineMessages(deviceId: string): Promise<Array<OfflineMessage>> {
