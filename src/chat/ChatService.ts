@@ -31,6 +31,8 @@ import { preKeyRepository } from '@/db/repositories/preKeyRepository'
 import { chatApi } from './api/chatApi'
 import { contactApi } from '@/contacts/contactApi'
 import type { FoundUser } from '@/contacts/types/FindUserResponse'
+import type { SkippedMessageKey } from './crypto/types/SkippedMessage'
+import type { InitialRatchetKeys } from './crypto/types/InitialRatchetKeys'
 
 /**
  * Encrypts and sends a message to the user in the currently selected chat.
@@ -92,7 +94,7 @@ export async function sendMessageInCurrentChat(content: string) {
           ? uint8ArrayToBase64(chatState.ephemeralPublicBytes)
           : null,
         cipherPayload: uint8ArrayToBase64(encryptResult.encryptedPayload),
-        encryptedHeader: uint8ArrayToBase64(encryptResult.header),
+        encryptedHeader: uint8ArrayToBase64(encryptResult.encryptedHeader),
       }
     }),
   )
@@ -226,7 +228,7 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
       throw new Error('Local device keys are not initialized.')
     }
 
-    const secretKey: CryptoKey = await establishSecretKeyWithSender(
+    const initialKeys: InitialRatchetKeys = await establishSecretKeyWithSender(
       senderDeviceIdentityKey,
       msg.senderEphemeralKey,
       receiverIdentity,
@@ -235,7 +237,7 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
     )
 
     console.log(
-      `Calculated SK: ${uint8ArrayToBase64(new Uint8Array(await crypto.subtle.exportKey('raw', secretKey)))}`,
+      `Calculated SK: ${uint8ArrayToBase64(new Uint8Array(await crypto.subtle.exportKey('raw', initialKeys.rootKey)))}`,
     )
 
     console.log(
@@ -252,12 +254,14 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
       senderDeviceIdentityKey.x25519PublicKey,
     )
 
-    const secretKeyRaw = new Uint8Array(await crypto.subtle.exportKey('raw', secretKey))
+    const secretKeyRaw = new Uint8Array(await crypto.subtle.exportKey('raw', initialKeys.rootKey))
     await initRatchetAsReceiver(
       chatState,
       secretKeyRaw,
       receiverSignedPreKey.keyPair.privateKey,
       receiverSignedPreKey.keyPair.publicKey,
+      initialKeys.sharedHeaderKey,
+      initialKeys.sharedNextHeaderKey,
     )
     await chatStateRepository.saveChatState(chatState)
     console.log(`ChatState for device=${msg.senderDeviceId} established!`)
@@ -395,7 +399,13 @@ async function establishChatStateForChat(chat: Chat) {
     newChatState.ephemeralPublicBytes = skBundle.ephemeralPublicBytes
 
     const secretKeyRaw = new Uint8Array(await crypto.subtle.exportKey('raw', skBundle.secretKey))
-    await initRatchetAsSender(newChatState, secretKeyRaw, skBundle.preKeyPublic)
+    await initRatchetAsSender(
+      newChatState,
+      secretKeyRaw,
+      skBundle.preKeyPublic,
+      skBundle.sharedHeaderKey,
+      skBundle.sharedNextHeaderKey,
+    )
     await chatStateRepository.saveChatState(newChatState)
   }
 }
@@ -414,11 +424,15 @@ function createNewChatState(
     rootKey: null,
     chainKeySending: null,
     chainKeyReceiving: null,
-    skippedMessageKeys: new Map(),
+    skippedMessageKeys: new Array<SkippedMessageKey>(),
     sendingMessageNumber: 0,
     receivingMessageNumber: 0,
     previousChainLength: 0,
     preKeyIdUsed: null,
     ephemeralPublicBytes: null,
+    headerKeySending: null,
+    headerKeyNextSending: null,
+    headerKeyReceiving: null,
+    headerKeyNextReceiving: null,
   }
 }

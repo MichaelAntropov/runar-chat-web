@@ -1,8 +1,9 @@
 import type { KeyPairState } from '@/device/types/KeyPairState '
-import type { GeneratedSecretKeyBundle } from '../types/key-bundle/GeneratedSecretKeyBundle'
+import type { GeneratedSecretKeyBundle } from './types/GeneratedSecretKeyBundle'
 import type { InitDeviceKeyBundle } from '../types/key-bundle/InitKeyBundleResponse'
 import type { OneTimePreKeyState } from '@/device/types/OneTimePreKeyState'
 import type { IdentityKey } from '../types/identity-key/IdentityKey'
+import type { InitialRatchetKeys } from './types/InitialRatchetKeys'
 
 const APPLICATION_INFO_STRING = 'QuarkusChatSecure'
 
@@ -102,6 +103,46 @@ export async function verifyPreKeySignature(
   }
 }
 
+async function deriveRatchetKeysFromKeyMaterial(
+  keyMaterial: Uint8Array<ArrayBuffer>,
+): Promise<InitialRatchetKeys> {
+  const baseKey: CryptoKey = await window.crypto.subtle.importKey(
+    'raw',
+    keyMaterial,
+    { name: 'HKDF' },
+    false,
+    ['deriveBits'],
+  )
+
+  const derivedBitsBuffer = await window.crypto.subtle.deriveBits(
+    {
+      name: 'HKDF',
+      salt: new Uint8Array(32).fill(0),
+      info: new TextEncoder().encode(APPLICATION_INFO_STRING),
+      hash: 'SHA-256',
+    },
+    baseKey,
+    256 * 3,
+  )
+
+  const derivedBytes = new Uint8Array(derivedBitsBuffer)
+
+  const skBytes = derivedBytes.slice(0, 32)
+  const sharedHeaderKey = derivedBytes.slice(32, 64)
+  const sharedNextHeaderKey = derivedBytes.slice(64, 96)
+
+  // 4. Import SK back as a CryptoKey
+  // (Note: In pure Double Ratchet, SK acts as a KDF key, but keeping AES-GCM here
+  // to match your original return type logic, assuming SK is used for immediate encryption or stored)
+  // If you strictly follow Double Ratchet KDF chains, this might need to be imported as 'HKDF' or just kept as bytes.
+  const rootKey = await window.crypto.subtle.importKey('raw', skBytes, { name: 'AES-GCM' }, true, [
+    'encrypt',
+    'decrypt',
+  ])
+
+  return { rootKey, sharedHeaderKey, sharedNextHeaderKey }
+}
+
 /**
  * Generates the initial shared secret key (SK) for a recipient's device bundle.
  * This is part of the X3DH key agreement protocol, executed by the sender.
@@ -155,26 +196,7 @@ export async function generateSecretKeyForKeyBundle(
     offset += segment.length
   }
 
-  const baseKey: CryptoKey = await window.crypto.subtle.importKey(
-    'raw',
-    keyMaterial,
-    { name: 'HKDF' },
-    false,
-    ['deriveKey'],
-  )
-
-  const secretKey = await window.crypto.subtle.deriveKey(
-    {
-      name: 'HKDF',
-      salt: new Uint8Array(32).fill(0),
-      info: new TextEncoder().encode(APPLICATION_INFO_STRING),
-      hash: 'SHA-256',
-    },
-    baseKey,
-    { name: 'AES-GCM', length: 256 },
-    true,
-    ['encrypt', 'decrypt'],
-  )
+  const ratchetKeys: InitialRatchetKeys = await deriveRatchetKeysFromKeyMaterial(keyMaterial)
 
   const senderEphemeralKeyPublic = await window.crypto.subtle.exportKey(
     'raw',
@@ -186,7 +208,9 @@ export async function generateSecretKeyForKeyBundle(
     deviceId: keyBundle.deviceId,
     x25519publicIdentityKey: keyBundle.x25519identityKey,
     oneTimePreKeyId: keyBundle.oneTimePreKeyId,
-    secretKey: secretKey,
+    secretKey: ratchetKeys.rootKey,
+    sharedHeaderKey: ratchetKeys.sharedHeaderKey,
+    sharedNextHeaderKey: ratchetKeys.sharedNextHeaderKey,
     preKeyPublic: keyBundle.preKey,
     ephemeralPublicBytes: new Uint8Array(senderEphemeralKeyPublic),
   }
@@ -206,7 +230,7 @@ export async function establishSecretKeyWithSender(
   receiverIdentity: KeyPairState,
   receiverSignedPreKey: KeyPairState,
   oneTimePreKey: OneTimePreKeyState,
-): Promise<CryptoKey> {
+): Promise<InitialRatchetKeys> {
   const identityKeyPrivate = receiverIdentity.keyPair?.privateKey
   const preKeyPrivate = receiverSignedPreKey.keyPair?.privateKey
 
@@ -243,26 +267,5 @@ export async function establishSecretKeyWithSender(
     offset += segment.length
   }
 
-  const baseKey: CryptoKey = await window.crypto.subtle.importKey(
-    'raw',
-    keyMaterial,
-    { name: 'HKDF' },
-    false,
-    ['deriveKey'],
-  )
-
-  const secretKey: CryptoKey = await window.crypto.subtle.deriveKey(
-    {
-      name: 'HKDF',
-      salt: new Uint8Array(32).fill(0),
-      info: new TextEncoder().encode(APPLICATION_INFO_STRING),
-      hash: 'SHA-256',
-    },
-    baseKey,
-    { name: 'AES-GCM', length: 256 },
-    true,
-    ['encrypt', 'decrypt'],
-  )
-
-  return secretKey
+  return await deriveRatchetKeysFromKeyMaterial(keyMaterial)
 }

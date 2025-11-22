@@ -1,12 +1,13 @@
-import { uint8ArrayToBase64, arraysEqual } from '@/core/utils'
+import { uint8ArrayToBase64 } from '@/core/utils'
 import type { ChatState } from '../types/chat/ChatState'
 import type { KdfCkPair } from './types/KdfCkPair'
 import type { KdfRkPair } from './types/KdfRkPair'
 import type { ParsedHeader } from './types/ParsedHeader'
 import type { RatchetEncryptResult } from './types/RatchetEncryptResult'
 import type { RatchetSendResult } from './types/RatchetSendResult'
-import { SkippedMessageIdentifier } from './types/SkippedMessageIdentifier'
 import { calculateDH, x25519PublicCryptoKeyForDHFromPublicBytes } from './dhke'
+import { SkippedMessageKey } from './types/SkippedMessage'
+import type { DecryptHeaderResult } from './types/DecryptHeaderResult'
 
 const DOUBLE_RATCHET_INFO_STRING = 'QuarkusChatSecureRatchet'
 const DOUBLE_RATCHET_AES_INFO_STRING = 'QuarkusChatSecureRatchetAES'
@@ -18,6 +19,8 @@ const KEY_LEN = 32
 const AES_KEY_LEN = 32 // AES-256
 const GCM_IV_LEN = 12 // GCM nonce length
 const GCM_TAG_LEN = 128 // GCM Tag length in bits
+const HEADER_KEY_LEN = 32
+const GCM_IV_HEADER_LEN = 16
 
 const MESSAGE_KEY_CONSTANT = new Uint8Array([0x01])
 const CHAIN_KEY_CONSTANT = new Uint8Array([0x02])
@@ -28,6 +31,8 @@ export async function initRatchetAsSender(
   chatState: ChatState,
   secretKey: Uint8Array<ArrayBuffer>,
   dhReceivingPublicKey: Uint8Array<ArrayBuffer>,
+  sharedHeaderKey: Uint8Array<ArrayBuffer>,
+  sharedNextHeaderKey: Uint8Array<ArrayBuffer>,
 ) {
   chatState.dhSendingKeyPair = await generateKeyPair()
   chatState.dhReceivingPublicKey = dhReceivingPublicKey
@@ -44,6 +49,12 @@ export async function initRatchetAsSender(
   console.log(
     `initRatchetAsSender() - ChainKey Sending: ${uint8ArrayToBase64(chatState.chainKeySending)}`,
   )
+
+  chatState.headerKeyNextSending = kdfRkPair.nextHeaderKey
+  chatState.headerKeySending = sharedHeaderKey
+
+  chatState.headerKeyReceiving = null
+  chatState.headerKeyNextReceiving = sharedNextHeaderKey
 }
 
 export async function initRatchetAsReceiver(
@@ -51,6 +62,8 @@ export async function initRatchetAsReceiver(
   secretKey: Uint8Array<ArrayBuffer>,
   dhReceivingPrivateKey: CryptoKey,
   dhReceivingPublicKey: CryptoKey,
+  sharedHeaderKey: Uint8Array<ArrayBuffer>,
+  sharedNextHeaderKey: Uint8Array<ArrayBuffer>,
 ) {
   chatState.dhSendingKeyPair = {
     privateKey: dhReceivingPrivateKey,
@@ -58,6 +71,12 @@ export async function initRatchetAsReceiver(
   }
   chatState.dhReceivingPublicKey = null
   chatState.rootKey = secretKey
+
+  chatState.headerKeySending = null
+  chatState.headerKeyNextSending = sharedNextHeaderKey
+
+  chatState.headerKeyReceiving = null
+  chatState.headerKeyNextReceiving = sharedHeaderKey
 }
 
 export async function ratchetEncrypt(
@@ -75,9 +94,13 @@ export async function ratchetEncrypt(
     chatState.previousChainLength,
     ratchetSendResult.messageNumber,
   )
-  const associatedDataWithHeader = new Uint8Array(associatedData.length + header.length)
+  const encryptedHeader: Uint8Array<ArrayBuffer> = await headerEncrypt(
+    chatState.headerKeySending!,
+    header,
+  )
+  const associatedDataWithHeader = new Uint8Array(associatedData.length + encryptedHeader.length)
   associatedDataWithHeader.set(associatedData)
-  associatedDataWithHeader.set(header, associatedData.length)
+  associatedDataWithHeader.set(encryptedHeader, associatedData.length)
 
   const encryptedPayload: Uint8Array<ArrayBuffer> = await encryptPayload(
     ratchetSendResult.messageKey,
@@ -85,45 +108,48 @@ export async function ratchetEncrypt(
     associatedDataWithHeader,
   )
 
-  return { header: header, encryptedPayload: encryptedPayload }
+  return { encryptedHeader: encryptedHeader, encryptedPayload: encryptedPayload }
 }
 
 export async function ratchetDecrypt(
   chatState: ChatState,
-  header: Uint8Array<ArrayBuffer>,
+  encryptedHeader: Uint8Array<ArrayBuffer>,
   encryptedPayload: Uint8Array<ArrayBuffer>,
   associatedData: Uint8Array<ArrayBuffer>,
 ): Promise<Uint8Array<ArrayBuffer>> {
-  const associatedDataWithHeader = new Uint8Array(associatedData.length + header.length)
+  const associatedDataWithHeader = new Uint8Array(associatedData.length + encryptedHeader.length)
   associatedDataWithHeader.set(associatedData)
-  associatedDataWithHeader.set(header, associatedData.length)
+  associatedDataWithHeader.set(encryptedHeader, associatedData.length)
 
-  const messageKey: Uint8Array<ArrayBuffer> = await getRatchetReceiveMessageKey(chatState, header)
+  const messageKey: Uint8Array<ArrayBuffer> = await getRatchetReceiveMessageKey(
+    chatState,
+    encryptedHeader,
+  )
   return await decryptPayload(messageKey, encryptedPayload, associatedDataWithHeader)
 }
 
 async function getRatchetReceiveMessageKey(
   chatState: ChatState,
-  header: Uint8Array<ArrayBuffer>,
+  encryptedHeader: Uint8Array<ArrayBuffer>,
 ): Promise<Uint8Array<ArrayBuffer>> {
-  const parsedHeader: ParsedHeader = parseHeader(header)
-  let messageKey: Uint8Array<ArrayBuffer> | undefined = getMessageKeyFromSkippedMessageKeys(
+  let messageKey: Uint8Array<ArrayBuffer> | undefined = await getMessageKeyFromSkippedMessageKeys(
     chatState,
-    parsedHeader.dhKeyPublic,
-    parsedHeader.messageNumber,
+    encryptedHeader,
   )
 
   if (messageKey) {
     return messageKey
   }
 
-  if (
-    !chatState.dhReceivingPublicKey ||
-    !arraysEqual(parsedHeader.dhKeyPublic, chatState.dhReceivingPublicKey)
-  ) {
+  const headerDecryptResult: DecryptHeaderResult = await decryptHeader(chatState, encryptedHeader)
+  const parsedHeader: ParsedHeader = parseHeader(headerDecryptResult.decryptedHeader)
+
+  if (headerDecryptResult.updateChatState) {
+    const parsedHeader: ParsedHeader = parseHeader(headerDecryptResult.decryptedHeader)
     await skipMessageKey(chatState, parsedHeader.previousChainLength)
     await updateRatchetStateFromHeader(chatState, parsedHeader.dhKeyPublic)
   }
+
   await skipMessageKey(chatState, parsedHeader.messageNumber)
   if (!chatState.chainKeyReceiving) {
     throw new Error('Empty chatState.chainKeyReceiving was provided')
@@ -161,6 +187,8 @@ async function updateRatchetStateFromHeader(
   chatState.previousChainLength = chatState.sendingMessageNumber
   chatState.sendingMessageNumber = 0
   chatState.receivingMessageNumber = 0
+  chatState.headerKeySending = chatState.headerKeyNextSending
+  chatState.headerKeyReceiving = chatState.headerKeyNextReceiving
   chatState.dhReceivingPublicKey = dhPublicKey
 
   const receivingDh: Uint8Array<ArrayBuffer> = await calculateDH(
@@ -172,6 +200,7 @@ async function updateRatchetStateFromHeader(
   const newKdfRkReceivingPair: KdfRkPair = await getKdfRkPair(chatState.rootKey, receivingDh)
   chatState.rootKey = newKdfRkReceivingPair.rootKey
   chatState.chainKeyReceiving = newKdfRkReceivingPair.chainKey
+  chatState.headerKeyNextReceiving = newKdfRkReceivingPair.nextHeaderKey
   console.log(
     `updateRatchetStateFromHeader() - ChainKey Receiving: ${uint8ArrayToBase64(chatState.chainKeyReceiving)}`,
   )
@@ -186,6 +215,7 @@ async function updateRatchetStateFromHeader(
   const newKdfRkSendingPair: KdfRkPair = await getKdfRkPair(chatState.rootKey, sendingDh)
   chatState.rootKey = newKdfRkSendingPair.rootKey
   chatState.chainKeySending = newKdfRkSendingPair.chainKey
+  chatState.headerKeyNextSending = newKdfRkSendingPair.nextHeaderKey
 }
 
 async function skipMessageKey(chatState: ChatState, until: number) {
@@ -200,17 +230,17 @@ async function skipMessageKey(chatState: ChatState, until: number) {
       )
       const kdfCkPair = await getKdfCkPair(chatState.chainKeyReceiving)
       chatState.chainKeyReceiving = kdfCkPair.chainKey
-      const skippedMessageKey = kdfCkPair.messageKey
 
       if (!chatState.dhReceivingPublicKey) {
         throw new Error('Empty chatState.dhReceivingPublicKey was provided')
       }
 
-      const identifier = new SkippedMessageIdentifier(
-        chatState.dhReceivingPublicKey,
+      const newSkippedMessageKey = new SkippedMessageKey(
+        chatState.headerKeyReceiving!,
         chatState.receivingMessageNumber,
+        kdfCkPair.messageKey,
       )
-      chatState.skippedMessageKeys.set(identifier.toKey(), skippedMessageKey)
+      chatState.skippedMessageKeys.push(newSkippedMessageKey)
       chatState.receivingMessageNumber++
     }
   }
@@ -248,7 +278,7 @@ async function getKdfRkPair(
       info,
     },
     baseKey,
-    (KEY_LEN + KEY_LEN) * 8, // len in bits
+    (KEY_LEN + KEY_LEN + HEADER_KEY_LEN) * 8, // length in bits
   )
 
   const rootKey: Uint8Array<ArrayBuffer> = new Uint8Array(derivedBits.slice(0, KEY_LEN))
@@ -256,7 +286,11 @@ async function getKdfRkPair(
     derivedBits.slice(KEY_LEN, KEY_LEN + KEY_LEN),
   )
 
-  return { rootKey, chainKey }
+  const nextHeaderKey: Uint8Array<ArrayBuffer> = new Uint8Array(
+    derivedBits.slice(KEY_LEN + KEY_LEN, KEY_LEN + KEY_LEN + HEADER_KEY_LEN),
+  )
+
+  return { rootKey, chainKey, nextHeaderKey }
 }
 
 async function getKdfCkPair(chainKey: Uint8Array<ArrayBuffer>): Promise<KdfCkPair> {
@@ -277,21 +311,46 @@ async function getKdfCkPair(chainKey: Uint8Array<ArrayBuffer>): Promise<KdfCkPai
   return { chainKey: newChainKeyTruncated, messageKey: messageKeyTruncated }
 }
 
-function getMessageKeyFromSkippedMessageKeys(
+async function getMessageKeyFromSkippedMessageKeys(
   chatState: ChatState,
-  dhPublicKey: Uint8Array<ArrayBuffer>,
-  messageNumber: number,
-) {
-  const identifier = new SkippedMessageIdentifier(dhPublicKey, messageNumber)
-  const key = identifier.toKey()
-  if (chatState.skippedMessageKeys.has(key)) {
-    const value = chatState.skippedMessageKeys.get(key)
-    chatState.skippedMessageKeys.delete(key)
-    return value
+  encryptedHeader: Uint8Array<ArrayBuffer>,
+): Promise<Uint8Array<ArrayBuffer> | undefined> {
+  for (let i = 0; i < chatState.skippedMessageKeys.length; i++) {
+    const skippedMessage = chatState.skippedMessageKeys[i]
+    const decryptedHeader = await headerDecrypt(skippedMessage.headerKey, encryptedHeader)
+    if (decryptedHeader) {
+      const parsedHeader: ParsedHeader = parseHeader(decryptedHeader)
+      if (parsedHeader.messageNumber === skippedMessage.messageNumber) {
+        chatState.skippedMessageKeys.splice(i, 1)
+        return skippedMessage.messageKey
+      }
+    }
   }
+  return undefined
 }
 
-function parseHeader(header: Uint8Array): ParsedHeader {
+async function decryptHeader(
+  chatState: ChatState,
+  encryptedHeader: Uint8Array<ArrayBuffer>,
+): Promise<DecryptHeaderResult> {
+  if (chatState.headerKeyReceiving) {
+    const decryptedHeader = await headerDecrypt(chatState.headerKeyReceiving, encryptedHeader)
+    if (decryptedHeader) {
+      return { decryptedHeader, updateChatState: false }
+    }
+  }
+
+  if (chatState.headerKeyNextReceiving) {
+    const decryptedHeader = await headerDecrypt(chatState.headerKeyNextReceiving, encryptedHeader)
+    if (decryptedHeader) {
+      return { decryptedHeader, updateChatState: true }
+    }
+  }
+
+  throw new Error('Header decryption failed with both current and next header keys')
+}
+
+function parseHeader(header: Uint8Array<ArrayBuffer>): ParsedHeader {
   const dhKeyPublic = header.slice(0, DH_KEY_LENGTH)
 
   const view = new DataView(header.buffer, header.byteOffset + DH_KEY_LENGTH, INT_SIZE + INT_SIZE)
@@ -398,5 +457,73 @@ async function decryptPayload(
   } catch (err) {
     console.log(err)
     throw new Error('Decryption failed (AEAD bad tag or corrupted data)')
+  }
+}
+
+async function headerEncrypt(
+  headerKey: Uint8Array<ArrayBuffer>,
+  header: Uint8Array<ArrayBuffer>,
+): Promise<Uint8Array<ArrayBuffer>> {
+  console.log(`headerEncrypt() - HeaderKey: ${uint8ArrayToBase64(headerKey)}`)
+
+  const key = await crypto.subtle.importKey('raw', headerKey, { name: 'AES-GCM' }, false, [
+    'encrypt',
+  ])
+
+  const iv = crypto.getRandomValues(new Uint8Array(GCM_IV_HEADER_LEN))
+
+  const encryptedDataBuffer = await crypto.subtle.encrypt(
+    {
+      name: 'AES-GCM',
+      iv,
+      tagLength: GCM_TAG_LEN,
+    },
+    key,
+    header,
+  )
+
+  const encryptedData = new Uint8Array(encryptedDataBuffer)
+  const result = new Uint8Array(iv.length + encryptedData.length)
+
+  result.set(iv, 0)
+  result.set(encryptedData, iv.length)
+
+  return result // contains iv + cipher + tag
+}
+
+async function headerDecrypt(
+  headerKey: Uint8Array<ArrayBuffer>,
+  encryptedHeader: Uint8Array<ArrayBuffer>,
+): Promise<Uint8Array<ArrayBuffer> | undefined> {
+  console.log(`headerDecrypt() - HeaderKey: ${uint8ArrayToBase64(headerKey)}`)
+
+  const key = await crypto.subtle.importKey('raw', headerKey, { name: 'AES-GCM' }, false, [
+    'decrypt',
+  ])
+
+  console.log(`headerDecrypt() - EncryptedHeader: ${uint8ArrayToBase64(encryptedHeader)}`)
+
+  const iv = encryptedHeader.slice(0, GCM_IV_HEADER_LEN)
+  const encryptedData = encryptedHeader.slice(GCM_IV_HEADER_LEN)
+
+  try {
+    const decryptedBuffer = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: iv, tagLength: GCM_TAG_LEN },
+      key,
+      encryptedData,
+    )
+
+    return new Uint8Array(decryptedBuffer)
+  } catch (err) {
+    if (
+      err instanceof DOMException &&
+      (err.name === 'InvalidAccessError' || err.name === 'OperationError')
+    ) {
+      console.log('headerDecrypt() - Decryption failed, invalid key')
+      return undefined
+    } else {
+      console.log(err)
+      throw new Error('Header decryption failed due to unexpected error')
+    }
   }
 }

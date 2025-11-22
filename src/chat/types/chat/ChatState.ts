@@ -1,3 +1,5 @@
+import type { SkippedMessageKey } from '@/chat/crypto/types/SkippedMessage'
+
 export interface ChatState {
   deviceId: string
   userId: string
@@ -17,7 +19,13 @@ export interface ChatState {
 
   previousChainLength: number
 
-  skippedMessageKeys: Map<string, Uint8Array<ArrayBuffer>>
+  skippedMessageKeys: Array<SkippedMessageKey>
+
+  headerKeySending: Uint8Array<ArrayBuffer> | null
+  headerKeyNextSending: Uint8Array<ArrayBuffer> | null
+
+  headerKeyReceiving: Uint8Array<ArrayBuffer> | null
+  headerKeyNextReceiving: Uint8Array<ArrayBuffer> | null
 
   preKeyIdUsed: string | null
   ephemeralPublicBytes: Uint8Array<ArrayBuffer> | null
