@@ -207,7 +207,7 @@ export async function generateSecretKeyForKeyBundle(
   return {
     deviceId: keyBundle.deviceId,
     x25519publicIdentityKey: keyBundle.x25519identityKey,
-    oneTimePreKeyId: keyBundle.oneTimePreKeyId,
+    oneTimePreKeyId: keyBundle.oneTimePreKeyId ? keyBundle.oneTimePreKeyId : null,
     secretKey: ratchetKeys.rootKey,
     sharedHeaderKey: ratchetKeys.sharedHeaderKey,
     sharedNextHeaderKey: ratchetKeys.sharedNextHeaderKey,

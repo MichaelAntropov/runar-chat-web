@@ -1,6 +1,6 @@
 import { useChatsStore } from './chatStore'
 import { useDeviceStore } from '../device/deviceStore'
-import type { InitKeyBundle } from './types/key-bundle/InitKeyBundleResponse'
+import type { InitDeviceKeyBundle, InitKeyBundle } from './types/key-bundle/InitKeyBundleResponse'
 import { useUserStore } from '@/user/userStore'
 import type { Chat } from '@/chat/types/chat/Chat'
 import type { DeviceMessagePayload, MessagePayload } from './types/message/MessagePayload'
@@ -33,12 +33,16 @@ import { contactApi } from '@/contacts/contactApi'
 import type { FoundUser } from '@/contacts/types/FindUserResponse'
 import type { SkippedMessageKey } from './crypto/types/SkippedMessage'
 import type { InitialRatchetKeys } from './crypto/types/InitialRatchetKeys'
+import { MissingDevicesError } from './types/message/MissingDevicesError'
+import type { GeneratedSecretKeyBundle } from './crypto/types/GeneratedSecretKeyBundle'
+import type { EncodedMessage } from './types/chat/Message'
+import type { TextMessage } from './types/chat/TextMessage'
 
 /**
  * Encrypts and sends a message to the user in the currently selected chat.
  * @param content The string content to send.
  */
-export async function sendMessageInCurrentChat(content: string) {
+export async function sendMessageInCurrentChat(content: string, retryCount = 0) {
   const userStore = useUserStore()
   const deviceStore = useDeviceStore()
   const chatStore = useChatsStore()
@@ -67,11 +71,6 @@ export async function sendMessageInCurrentChat(content: string) {
   console.log('sendMessageInCurrentChat() - Chat states fetched!')
 
   const senderIdEncoded = new TextEncoder().encode(userStore.principal.id)
-  const receiverIdEncoded = new TextEncoder().encode(chat.contact.userId)
-
-  const associatedData = new Uint8Array(senderIdEncoded.length + receiverIdEncoded.length)
-  associatedData.set(senderIdEncoded)
-  associatedData.set(receiverIdEncoded, senderIdEncoded.length)
 
   const messagePayloads: DeviceMessagePayload[] = await Promise.all(
     existingChatStates.map(async (chatState: ChatState) => {
@@ -79,12 +78,23 @@ export async function sendMessageInCurrentChat(content: string) {
         `sendMessageInCurrentChat() - Encrypt message for user=${chatState.userId} with device=${chatState.deviceId}`,
       )
 
+      const receiverIdEncoded = new TextEncoder().encode(chatState.userId)
+
+      const associatedData = new Uint8Array(senderIdEncoded.length + receiverIdEncoded.length)
+      associatedData.set(senderIdEncoded)
+      associatedData.set(receiverIdEncoded, senderIdEncoded.length)
+
+      const textMessage: TextMessage = {
+        type: 'TEXT',
+        ultimateReceiverId: chat.contact.userId,
+        content: content,
+      }
+
       const encryptResult: RatchetEncryptResult = await ratchetEncrypt(
         chatState,
-        new TextEncoder().encode(content),
+        new TextEncoder().encode(JSON.stringify(textMessage)),
         associatedData,
       )
-      await chatStateRepository.updateChatState(chatState)
 
       return {
         receiverDeviceId: chatState.deviceId,
@@ -104,19 +114,64 @@ export async function sendMessageInCurrentChat(content: string) {
     deviceMessages: messagePayloads,
   }
 
-  const response: SendMessageResponse = (await chatApi.postSendMessagePayload(messagePayload)).data
-  console.log(`sendMessageInCurrentChat() - Send message response: `, response)
+  try {
+    const response: SendMessageResponse = await chatApi.postSendMessagePayload(messagePayload)
 
-  const newStoredMessage: StoredMessage = {
-    id: response.messageId,
-    chatId: chat.id,
-    senderId: userStore.principal.id,
-    recipientId: chat.contact.userId,
-    createdAt: Date.parse(response.createdAt),
-    content: content,
+    console.log(`sendMessageInCurrentChat() - Send message response: `, response)
+
+    const newStoredMessage: StoredMessage = {
+      id: response.messageId,
+      chatId: chat.id,
+      senderId: userStore.principal.id,
+      recipientId: chat.contact.userId,
+      createdAt: Date.parse(response.createdAt),
+      content: content,
+    }
+
+    for (const chatState of existingChatStates) {
+      await chatStateRepository.updateChatState(chatState)
+    }
+    chatStore.addMessageToChat(chat, newStoredMessage)
+  } catch (error) {
+    if (error instanceof MissingDevicesError) {
+      console.warn('sendMessageInCurrentChat() - Missing Devices:', error.deviceIds)
+
+      if (retryCount >= 2) {
+        console.error(`sendMessageInCurrentChat() - Aborting after 2 retries for missing devices.`)
+        throw error
+      }
+
+      let count = 0
+      const keyBundles: Map<string, InitDeviceKeyBundle[]> = await chatApi.getKeyBundles(
+        error.deviceIds,
+      )
+      for (const [userId, bundles] of keyBundles.entries()) {
+        for (const bundle of bundles) {
+          await establishChatStateForKeyBundle(userId, bundle)
+          count++
+        }
+      }
+
+      if (count === 0) {
+        console.error(
+          'sendMessageInCurrentChat() - API reported missing devices, but no key bundles were returned.',
+        )
+        throw error
+      }
+
+      console.log(
+        `sendMessageInCurrentChat() - Recovered ${count} sessions. Retrying... (Attempt ${retryCount + 1})`,
+      )
+
+      console.log(
+        'sendMessageInCurrentChat() - Retrying to send message after establishing keys...',
+      )
+      await sendMessageInCurrentChat(content, retryCount + 1)
+    } else {
+      console.error('sendMessageInCurrentChat() - Failed to send', error)
+      throw error
+    }
   }
-
-  chatStore.addMessageToChat(chat, newStoredMessage)
 }
 
 /**
@@ -125,7 +180,7 @@ export async function sendMessageInCurrentChat(content: string) {
 export async function fetchAndDecryptOfflineMessages() {
   const deviceStore = useDeviceStore()
   if (!deviceStore.deviceId) {
-    console.log('fetchAndDecryptOfflineMessages() - No device setup!')
+    console.warn('fetchAndDecryptOfflineMessages() - No device setup!')
     return
   }
 
@@ -148,39 +203,18 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
   const userStore = useUserStore()
   const deviceStore = useDeviceStore()
   const chatStore = useChatsStore()
-  const contactStore = useContactsStore()
 
   if (!userStore.principal || !deviceStore.deviceId) {
     console.log('decryptInboundMessageAndPushToChat() - No principal/local device setup!')
     return
   }
 
-  const existingContact = contactStore.contacts.find((v) => v.userId === msg.senderId)
-  let chat = chatStore.chats.find((chat) => chat.contact.userId === msg.senderId)
-  if (!existingContact || !chat) {
-    if (!existingContact && !chat) {
-      console.log(
-        `decryptInboundMessageAndPushToChat() - No contact & chat found for userId=${msg.senderId}. Creating...`,
-      )
-      await createContactAndChatForUserId(msg.senderId)
-      chat = chatStore.chats.find((chat) => chat.contact.userId === msg.senderId)
-    } else if (!chat && existingContact) {
-      console.log(
-        `decryptInboundMessageAndPushToChat() - No chat found for userId=${msg.senderId}. Creating...`,
-      )
-      await chatStore.createNewChatFromContact(existingContact)
-      chat = chatStore.chats.find((chat) => chat.contact.userId === msg.senderId)
-    } else {
-      console.error(
-        `decryptInboundMessageAndPushToChat() - No contact found but chat exists for userId=${msg.senderId}.`,
-      )
-      return
-    }
-  }
-
-  if (!chat) {
+  try {
+    await getExistingOrCreateNewChat(msg.senderId)
+  } catch (error) {
     console.error(
-      `decryptInboundMessageAndPushToChat() - Could not create/find chat for userId=${msg.senderId}.`,
+      `decryptInboundMessageAndPushToChat() - Failed to get/create chat for userId=${msg.senderId}:`,
+      error,
     )
     return
   }
@@ -270,30 +304,109 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
   const senderIdEncoded = new TextEncoder().encode(msg.senderId)
   const receiverIdEncoded = new TextEncoder().encode(userStore.principal.id)
 
-  const ad = new Uint8Array(senderIdEncoded.length + receiverIdEncoded.length)
-  ad.set(senderIdEncoded)
-  ad.set(receiverIdEncoded, senderIdEncoded.length)
+  const associatedData = new Uint8Array(senderIdEncoded.length + receiverIdEncoded.length)
+  associatedData.set(senderIdEncoded)
+  associatedData.set(receiverIdEncoded, senderIdEncoded.length)
 
   const content: Uint8Array = await ratchetDecrypt(
     chatState,
     msg.encryptedHeader,
     msg.cipherPayload,
-    ad,
+    associatedData,
   )
-  await chatStateRepository.updateChatState(chatState)
 
-  console.log(`decryptInboundMessageAndPushToChat() - Decrypted message: ${content}`)
+  const encodedMessage: EncodedMessage = JSON.parse(
+    new TextDecoder().decode(content),
+  ) as EncodedMessage
 
-  const newStoredMessage: StoredMessage = {
-    id: msg.messageId,
-    chatId: chat.id,
-    senderId: msg.senderId,
-    recipientId: userStore.principal.id,
-    createdAt: Date.parse(msg.createdAt),
-    content: new TextDecoder().decode(content),
+  console.log(
+    `decryptInboundMessageAndPushToChat() - Decrypted message: ${JSON.stringify(encodedMessage)}`,
+  )
+
+  if (encodedMessage.type === 'TEXT') {
+    const actualChatUserId =
+      msg.senderId === userStore.principal.id ? encodedMessage.ultimateReceiverId : msg.senderId
+
+    let chat: Chat | null
+    try {
+      chat = await getExistingOrCreateNewChat(actualChatUserId)
+    } catch (error) {
+      console.error(
+        `decryptInboundMessageAndPushToChat() - Failed to get/create chat for actualCounterpartyUserId=${actualChatUserId}:`,
+        error,
+      )
+      return
+    }
+
+    if (!chat) {
+      console.error(
+        `decryptInboundMessageAndPushToChat() - No chat found/created for actualCounterpartyUserId=${actualChatUserId}`,
+      )
+      return
+    }
+
+    const textMessage: TextMessage = encodedMessage as TextMessage
+
+    const newStoredMessage: StoredMessage = {
+      id: msg.messageId,
+      chatId: chat.id,
+      senderId: msg.senderId,
+      recipientId: userStore.principal.id,
+      createdAt: Date.parse(msg.createdAt),
+      content: textMessage.content,
+    }
+
+    await chatStateRepository.updateChatState(chatState)
+    chatStore.addMessageToChat(chat, newStoredMessage)
+  } else {
+    console.warn(
+      `decryptInboundMessageAndPushToChat() - Unknown message type: ${encodedMessage.type}`,
+    )
+  }
+}
+
+async function getExistingOrCreateNewChat(userId: string): Promise<Chat | null> {
+  const userStore = useUserStore()
+  const deviceStore = useDeviceStore()
+  const contactStore = useContactsStore()
+  const chatStore = useChatsStore()
+
+  if (!userStore.principal || !deviceStore.deviceId) {
+    throw new Error('No principal/local device setup!')
   }
 
-  chatStore.addMessageToChat(chat, newStoredMessage)
+  if (userId === userStore.principal.id) {
+    console.log(
+      `getExistingOrCreateNewChat() - Message is from another device of the principal. Ignoring.`,
+    )
+    return null
+  }
+
+  const existingContact = contactStore.contacts.find((v) => v.userId === userId)
+  let chat = chatStore.chats.find((chat) => chat.contact.userId === userId)
+  if (!existingContact || !chat) {
+    if (!existingContact && !chat) {
+      console.log(
+        `getExistingOrCreateNewChat() - No contact & chat state found for userId=${userId}. Creating...`,
+      )
+      await createContactAndChatForUserId(userId)
+      chat = chatStore.chats.find((chat) => chat.contact.userId === userId)
+      return chat!
+    } else if (!chat && existingContact) {
+      console.log(`getExistingOrCreateNewChat() - No chat found for userId=${userId}. Creating...`)
+      await chatStore.createNewChatFromContact(existingContact)
+      chat = chatStore.chats.find((chat) => chat.contact.userId === userId)
+      return chat!
+    } else {
+      throw new Error(`No contact found but chat state exists for userId=${userId}.`)
+    }
+  }
+
+  if (!chat) {
+    throw new Error(`Could not create/find chat for userId=${userId}.`)
+  }
+
+  return chat
 }
 
 async function createContactAndChatForUserId(userId: string) {
@@ -363,7 +476,14 @@ async function getEstablishedChatStateForDeviceId(
 
 async function getEstablishedChatStatesForChat(chat: Chat): Promise<ChatState[]> {
   console.log('Get existing chat states...')
-  return chatStateRepository.getAllChatStatesByUserId(chat.contact.userId)
+  const userStore = useUserStore()
+  const chatStatesWithContact: ChatState[] = await chatStateRepository.getAllChatStatesByUserId(
+    chat.contact.userId,
+  )
+  const chatStatesWithOtherPrincipleDevices: ChatState[] =
+    await chatStateRepository.getAllChatStatesByUserId(userStore.principal!.id)
+
+  return chatStatesWithContact.concat(chatStatesWithOtherPrincipleDevices)
 }
 
 async function establishChatStateForChat(chat: Chat) {
@@ -408,6 +528,46 @@ async function establishChatStateForChat(chat: Chat) {
     )
     await chatStateRepository.saveChatState(newChatState)
   }
+}
+
+async function establishChatStateForKeyBundle(userId: string, bundle: InitDeviceKeyBundle) {
+  const deviceStore = useDeviceStore()
+
+  console.log(`Verify signature for device=${bundle.deviceId}`)
+  const verification: boolean = await verifyPreKeySignature(
+    bundle.ed25519identityKey,
+    bundle.preKey,
+    bundle.preKeySignature,
+  )
+
+  if (!verification) {
+    throw new Error('Failed to verify device pre-key signatures.')
+  }
+
+  if (!deviceStore.identityX25519.keyPair) {
+    throw new Error('Local identity key missing.')
+  }
+
+  const identityX25519PrivateKey: CryptoKey = deviceStore.identityX25519.keyPair.privateKey
+
+  const skBundle: GeneratedSecretKeyBundle = await generateSecretKeyForKeyBundle(
+    bundle,
+    identityX25519PrivateKey,
+  )
+
+  const newChatState = createNewChatState(userId, skBundle.deviceId, null)
+  newChatState.preKeyIdUsed = skBundle.oneTimePreKeyId
+  newChatState.ephemeralPublicBytes = skBundle.ephemeralPublicBytes
+
+  const secretKeyRaw = new Uint8Array(await crypto.subtle.exportKey('raw', skBundle.secretKey))
+  await initRatchetAsSender(
+    newChatState,
+    secretKeyRaw,
+    skBundle.preKeyPublic,
+    skBundle.sharedHeaderKey,
+    skBundle.sharedNextHeaderKey,
+  )
+  await chatStateRepository.saveChatState(newChatState)
 }
 
 function createNewChatState(

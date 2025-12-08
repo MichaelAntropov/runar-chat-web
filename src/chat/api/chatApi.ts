@@ -5,6 +5,7 @@ import type {
   InitDeviceKeyBundleResponse,
   InitKeyBundle,
   InitKeyBundleResponse,
+  MultiUserInitKeyBundleResponse,
 } from '../types/key-bundle/InitKeyBundleResponse'
 import type { OfflineMessagesResponses } from '../types/message/MessagesResponse'
 import type {
@@ -15,7 +16,9 @@ import { http } from '@/core/api/httpClient'
 import type { IdentityKey } from '../types/identity-key/IdentityKey'
 import { base64ToUint8Array } from '@/core/utils'
 import type { OfflineMessage } from '../types/message/OfflineMessage'
-import type { AxiosPromise } from 'axios'
+import { isAxiosError } from 'axios'
+import type { ApiErrorResponse } from '@/core/api/types/ApiErrorResponse'
+import { MissingDevicesError } from '../types/message/MissingDevicesError'
 
 export const chatApi = {
   async getIdentityKeys(userId: string): Promise<IdentityKey[]> {
@@ -41,15 +44,61 @@ export const chatApi = {
         preKey: base64ToUint8Array(keyBundle.preKey),
         preKeySignature: base64ToUint8Array(keyBundle.preKeySignature),
         oneTimePreKeyId: keyBundle.oneTimePreKeyId,
-        oneTimePreKey: base64ToUint8Array(keyBundle.oneTimePreKey),
+        oneTimePreKey: keyBundle.oneTimePreKey ? base64ToUint8Array(keyBundle.oneTimePreKey) : null,
       }),
     )
 
     return { keyBundles: parsedKeyBundles }
   },
 
-  async postSendMessagePayload(payload: MessagePayload): AxiosPromise<SendMessageResponse> {
-    return http.post<SendMessageResponse>('/api/v1/messages/send-message', payload)
+  async getKeyBundles(
+    userIdsAndDeviceIds: Map<string, Array<string>>,
+  ): Promise<Map<string, Array<InitDeviceKeyBundle>>> {
+    const result = await http.post<MultiUserInitKeyBundleResponse>(`/api/v1/keys/key-bundles`, {
+      deviceIds: userIdsAndDeviceIds,
+    })
+
+    const parsed = new Map<string, Array<InitDeviceKeyBundle>>()
+
+    for (const [userId, rawBundles] of Object.entries(result.data.userKeyBundles)) {
+      const parsedKeyBundles = rawBundles.map((keyBundle: InitDeviceKeyBundleResponse) => ({
+        deviceId: keyBundle.deviceId,
+        x25519identityKey: base64ToUint8Array(keyBundle.x25519identityKey),
+        ed25519identityKey: base64ToUint8Array(keyBundle.ed25519identityKey),
+        preKey: base64ToUint8Array(keyBundle.preKey),
+        preKeySignature: base64ToUint8Array(keyBundle.preKeySignature),
+        oneTimePreKeyId: keyBundle.oneTimePreKeyId,
+        oneTimePreKey: keyBundle.oneTimePreKey ? base64ToUint8Array(keyBundle.oneTimePreKey) : null,
+      }))
+
+      parsed.set(userId, parsedKeyBundles)
+    }
+
+    return parsed
+  },
+
+  async postSendMessagePayload(payload: MessagePayload): Promise<SendMessageResponse> {
+    try {
+      const response = await http.post<SendMessageResponse>(
+        '/api/v1/messages/send-message',
+        payload,
+      )
+      return response.data
+    } catch (error) {
+      if (isAxiosError(error) && error.response && error.response.data) {
+        const errorResponse = error.response.data as ApiErrorResponse
+
+        const missingDeviceError = errorResponse.errors.find((e) => e.code === 'MISSING_DEVICES')
+
+        if (missingDeviceError) {
+          const data = missingDeviceError.data as Map<string, Array<string>> | undefined
+          const deviceIds = data ?? new Map<string, Array<string>>()
+          throw new MissingDevicesError(deviceIds)
+        }
+      }
+
+      throw error
+    }
   },
 
   async postReceiveOfflineMessages(deviceId: string): Promise<OfflineMessage[]> {

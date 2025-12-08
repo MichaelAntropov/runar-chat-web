@@ -2,6 +2,10 @@ export interface InitKeyBundleResponse {
   keyBundles: Array<InitDeviceKeyBundleResponse>
 }
 
+export interface MultiUserInitKeyBundleResponse {
+  userKeyBundles: Record<string, Array<InitDeviceKeyBundleResponse>>
+}
+
 export interface InitDeviceKeyBundleResponse {
   deviceId: string
 
@@ -10,8 +14,8 @@ export interface InitDeviceKeyBundleResponse {
   preKey: string
   preKeySignature: string
 
-  oneTimePreKeyId: string
-  oneTimePreKey: string
+  oneTimePreKeyId: string | null
+  oneTimePreKey: string | null
 }
 
 export interface InitKeyBundle {
@@ -26,6 +30,6 @@ export interface InitDeviceKeyBundle {
   preKey: Uint8Array<ArrayBuffer>
   preKeySignature: Uint8Array<ArrayBuffer>
 
-  oneTimePreKeyId: string
-  oneTimePreKey: Uint8Array<ArrayBuffer>
+  oneTimePreKeyId: string | null
+  oneTimePreKey: Uint8Array<ArrayBuffer> | null
 }
