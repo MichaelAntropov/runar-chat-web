@@ -6,15 +6,13 @@ import type { Chat } from '@/chat/types/chat/Chat'
 import type { DeviceMessagePayload, MessagePayload } from './types/message/MessagePayload'
 import type { SendMessageResponse } from '@/chat/types/message/SendMessageResponse'
 import type { StoredMessage } from '@/chat/types/chat/StoredMessage'
-import type { OfflineMessagesResponses } from './types/message/MessagesResponse'
-import type { OfflineMessage } from './types/message/OfflineMessage'
 import type { OneTimePreKeyState } from '@/device/types/OneTimePreKeyState'
 import type { IdentityKey } from './types/identity-key/IdentityKey'
 import { useContactsStore } from '@/contacts/contactStore'
 import type { InboundMessage } from './types/message/InboundMessage'
 import type { ChatState } from './types/chat/ChatState'
 import type { RatchetEncryptResult } from './crypto/types/RatchetEncryptResult'
-import { base64ToUint8Array, uint8ArrayToBase64 } from '@/core/utils'
+import { uint8ArrayToBase64 } from '@/core/utils'
 import {
   establishSecretKeyWithSender,
   generateSecretKeyForKeyBundle,
@@ -186,7 +184,7 @@ export async function fetchAndDecryptOfflineMessages() {
 
   console.log('fetchAndDecryptOfflineMessages() - Fetching and decrypting offline messages...')
 
-  const offlineMessages = await fetchOfflineMessages(deviceStore.deviceId)
+  const offlineMessages = await chatApi.postReceiveOfflineMessages(deviceStore.deviceId)
   offlineMessages.sort((msgA, msgB) => Date.parse(msgA.createdAt) - Date.parse(msgB.createdAt))
 
   for (const msg of offlineMessages) {
@@ -394,7 +392,7 @@ async function getExistingOrCreateNewChat(userId: string): Promise<Chat | null> 
       return chat!
     } else if (!chat && existingContact) {
       console.log(`getExistingOrCreateNewChat() - No chat found for userId=${userId}. Creating...`)
-      await chatStore.createNewChatFromContact(existingContact)
+      chatStore.createNewChatFromContact(existingContact)
       chat = chatStore.chats.find((chat) => chat.contact.userId === userId)
       return chat!
     } else {
@@ -421,50 +419,6 @@ async function createContactAndChatForUserId(userId: string) {
 
   const chatStore = useChatsStore()
   chatStore.createNewChatFromContact(newContact)
-}
-
-async function fetchOfflineMessages(deviceId: string): Promise<Array<OfflineMessage>> {
-  const userStore = useUserStore()
-  const response = await fetch(`/api/v1/messages/receive/${deviceId}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer ' + (await userStore.getAccessToken()),
-    },
-  })
-
-  if (!response.ok) {
-    const errorBody = await response.text()
-    console.error('getKeyBundle() - error body:', errorBody)
-    throw new Error(`getKeyBundle() error! Status: ${response.status}`)
-  }
-
-  const result: OfflineMessagesResponses = await response.json()
-
-  const parsedResult: Array<OfflineMessage> = []
-  for (let i = 0; i < result.messages.length; i++) {
-    const msg = result.messages[i]
-    const offlineMessage: OfflineMessage = {
-      messageId: msg.messageId,
-      createdAt: msg.createdAt,
-
-      senderId: msg.senderId,
-      senderDeviceId: msg.senderDeviceId,
-
-      preKeyIdUsed: msg.preKeyIdUsed,
-      oneTimePreKeyIdUsed: msg.oneTimePreKeyIdUsed,
-
-      senderEphemeralKey: msg.senderEphemeralKey
-        ? base64ToUint8Array(msg.senderEphemeralKey)
-        : null,
-      cipherPayload: base64ToUint8Array(msg.cipherPayload),
-      encryptedHeader: msg.encryptedHeader ? base64ToUint8Array(msg.encryptedHeader) : null,
-    }
-
-    parsedResult.push(offlineMessage)
-  }
-
-  return parsedResult
 }
 
 async function getEstablishedChatStateForDeviceId(

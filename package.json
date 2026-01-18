@@ -16,7 +16,7 @@
     "axios": "^1.13.1",
     "bootstrap": "^5.3.3",
     "bootstrap-icons": "^1.11.3",
-    "dexie": "^4.0.11",
+    "dexie": "^4.2.1",
     "js-base64": "^3.7.7",
     "jwt-decode": "^4.0.0",
     "pinia": "^3.0.1",
