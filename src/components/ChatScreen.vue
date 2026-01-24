@@ -1,14 +1,21 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import type { Ref } from 'vue'
 import SideBarContent from './SideBarContent.vue'
 import ChatView from './ChatView.vue'
 import LoadingOverlay from './LoadingOverlay.vue'
 import { useDeviceStore } from '@/device/deviceStore'
 import { useConnectionStore } from '@/connection/connectionStore'
+import { useDbStore } from '@/db/dbStore'
+import DbEncryptionModal from './DbEncryptionModal.vue'
 
 const deviceStore = useDeviceStore()
+const dbStore = useDbStore()
 useConnectionStore()
+
+onMounted(() => {
+  dbStore.init()
+})
 
 const sidebarWidth: Ref<number> = ref(400)
 const isResizing: Ref<boolean> = ref(false)
@@ -36,7 +43,12 @@ function stopResize() {
 </script>
 
 <template>
-  <div class="">
+  <LoadingOverlay v-if="!deviceStore.isRegistered || deviceStore.isLoading" />
+  <DbEncryptionModal
+    v-if="dbStore.dbStatus === 'setup-required' || dbStore.dbStatus === 'unlock-required'"
+  />
+
+  <div v-if="dbStore.dbStatus == 'ready'" class="">
     <div ref="sidebar" class="sidebar">
       <SideBarContent />
       <div class="resizer" @mousedown.prevent="startResize"></div>
@@ -49,8 +61,6 @@ function stopResize() {
       </div>
     </div>
   </div>
-
-  <LoadingOverlay v-if="!deviceStore.isRegistered || deviceStore.isLoading" />
 </template>
 
 <style scoped>

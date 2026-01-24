@@ -11,11 +11,13 @@ import { WebsocketConnection, type WebSocketConnectionStatus } from './Websocket
 import {
   decryptInboundMessageAndPushToChat,
   fetchAndDecryptOfflineMessages,
-} from '@/chat/chatService'
+} from '@/chat/ChatService'
+import { useDbStore, type DbStatus } from '@/db/dbStore'
 
 export const useConnectionStore = defineStore('connection-store', () => {
   const userStore = useUserStore()
   const deviceStore = useDeviceStore()
+  const dbStore = useDbStore()
 
   const webSocketConnectionStatus: Ref<WebSocketConnectionStatus> = ref('none')
 
@@ -43,18 +45,28 @@ export const useConnectionStore = defineStore('connection-store', () => {
   }
 
   watch(
-    () => [userStore.isAuthenticated, deviceStore.registrationStatus, deviceStore.deviceId],
-    ([isAuthenticated, registrationStatus, deviceId], oldValues = []) => {
+    () => [
+      userStore.isAuthenticated,
+      deviceStore.registrationStatus,
+      deviceStore.deviceId,
+      dbStore.dbStatus,
+    ],
+    ([isAuthenticated, registrationStatus, deviceId, dbEncryptionStatus], oldValues = []) => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const [wasAuthenticated, prevRegStatus, _] = oldValues as (
+      const [wasAuthenticated, prevRegStatus, prevDeviceId, prevDbEncryptStatus] = oldValues as (
         | boolean
         | DeviceRegistrationStatus
+        | DbStatus
         | string
         | null
         | undefined
       )[]
+
       const canConnect =
-        isAuthenticated && registrationStatus === 'registered' && typeof deviceId === 'string'
+        isAuthenticated &&
+        registrationStatus === 'registered' &&
+        typeof deviceId === 'string' &&
+        dbEncryptionStatus === 'ready'
 
       if (canConnect) {
         console.log('[connection-store] - Connect websocket.')

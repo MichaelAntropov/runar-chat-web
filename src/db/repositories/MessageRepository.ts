@@ -1,15 +1,20 @@
-import { db, MESSAGES_STORE } from '@/db/veilDB'
+import { MESSAGES_STORE } from '@/db/veilDB'
 import type { StoredMessage } from '../../chat/types/chat/StoredMessage'
 import { Dexie } from 'dexie'
+import { useDbStore } from '../dbStore'
 
 export class MessageRepository {
+  private get db() {
+    return useDbStore().db
+  }
+
   async saveMessage(message: StoredMessage): Promise<string> {
-    return db[MESSAGES_STORE].add(message, message.id)
+    return this.db[MESSAGES_STORE].add(message, message.id)
   }
 
   async getLatestByChatId(chatId: string, size: number): Promise<StoredMessage[]> {
     // https://github.com/dexie/Dexie.js/issues/167
-    return db[MESSAGES_STORE].where('[chatId+createdAt]')
+    return this.db[MESSAGES_STORE].where('[chatId+createdAt]')
       .between([chatId, Dexie.minKey], [chatId, Dexie.maxKey])
       .reverse()
       .offset(0)
@@ -22,7 +27,7 @@ export class MessageRepository {
     offset: number,
     size: number,
   ): Promise<StoredMessage[]> {
-    return db[MESSAGES_STORE].where('[chatId+createdAt]')
+    return this.db[MESSAGES_STORE].where('[chatId+createdAt]')
       .between([chatId, Dexie.minKey], [chatId, Dexie.maxKey])
       .offset(offset)
       .limit(size)
@@ -30,7 +35,7 @@ export class MessageRepository {
   }
 
   async countByChatId(chatId: string): Promise<number> {
-    return db[MESSAGES_STORE].where('chatId').equals(chatId).count()
+    return this.db[MESSAGES_STORE].where('chatId').equals(chatId).count()
   }
 }
 

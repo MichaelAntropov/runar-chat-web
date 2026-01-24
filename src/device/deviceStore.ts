@@ -9,7 +9,8 @@ import type { RegisterDeviceRequest } from '@/device/types/RegisterDeviceRequest
 import { Base64 } from 'js-base64'
 import type { RegisterDeviceResponse } from '@/device/types/RegisterDeviceResponses'
 import type { KeyBundle } from './types/KeyBundle'
-import { db, KEYS_STORE, PRE_KEYS_STORE, IDENTITY_KEY_BUNDLE_KEY } from '../db/veilDB'
+import { KEYS_STORE, PRE_KEYS_STORE, IDENTITY_KEY_BUNDLE_KEY } from '../db/veilDB'
+import { useDbStore } from '@/db/dbStore'
 
 export type DeviceRegistrationStatus =
   | 'loading'
@@ -25,6 +26,7 @@ const OTPK_COUNT = 5
 
 export const useDeviceStore = defineStore('device', () => {
   const userStore = useUserStore()
+  const dbStore = useDbStore()
 
   const deviceId: Ref<string | null> = ref(null)
   const registrationStatus: Ref<DeviceRegistrationStatus> = ref('loading')
@@ -63,20 +65,27 @@ export const useDeviceStore = defineStore('device', () => {
     { immediate: true },
   )
 
-  try {
-    loadStateFromDB()
-  } catch (error: unknown) {
-    console.log(`Failed to load state from IndexedDB: ${error}`)
-    console.error(error)
-    registrationStatus.value = 'error'
-  }
+  watch(
+    () => dbStore.dbStatus,
+    (newStatus) => {
+      if (newStatus === 'ready') {
+        try {
+          loadStateFromDB()
+        } catch (error: unknown) {
+          console.log(`Failed to load state from IndexedDB: ${error}`)
+          console.error(error)
+          registrationStatus.value = 'error'
+        }
+      }
+    },
+  )
 
   async function loadStateFromDB(): Promise<void> {
     console.log('Load device state from IndexedDB...')
     registrationStatus.value = 'loading'
 
-    const keysPromise = db[KEYS_STORE].get(IDENTITY_KEY_BUNDLE_KEY)
-    const preKeysPromise = db[PRE_KEYS_STORE].toArray()
+    const keysPromise = dbStore.db[KEYS_STORE].get(IDENTITY_KEY_BUNDLE_KEY)
+    const preKeysPromise = dbStore.db[PRE_KEYS_STORE].toArray()
 
     const [keyBundle, preKeys] = await Promise.all([keysPromise, preKeysPromise])
 
@@ -256,11 +265,10 @@ export const useDeviceStore = defineStore('device', () => {
     }
     const otpksToStore = toRaw(oneTimePreKeys.value)
 
-    await db.transaction('rw', db[KEYS_STORE], db[PRE_KEYS_STORE], async () => {
-      await db[KEYS_STORE].add(keyBundle, IDENTITY_KEY_BUNDLE_KEY)
-      for (let i = 0; i < otpksToStore.length; i++) {
-        await db[PRE_KEYS_STORE].add(otpksToStore[i], otpksToStore[i].id)
-      }
+    const rawDb = toRaw(dbStore.db)
+    await rawDb.transaction('rw', rawDb[KEYS_STORE], rawDb[PRE_KEYS_STORE], async () => {
+      await rawDb[KEYS_STORE].add(keyBundle, IDENTITY_KEY_BUNDLE_KEY)
+      await rawDb[PRE_KEYS_STORE].bulkAdd(otpksToStore)
     })
 
     registrationStatus.value = 'registered'
