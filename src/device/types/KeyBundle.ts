@@ -1,4 +1,4 @@
-import type { KeyPairState } from './KeyPairState '
+import type { KeyPairState } from './KeyPairState'
 import type { SignedPreKeyState } from './SignedPreKeyState'
 
 export interface KeyBundle {

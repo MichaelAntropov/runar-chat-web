@@ -1,4 +1,4 @@
-import type { KeyPairState } from '@/device/types/KeyPairState '
+import type { KeyPairState } from '@/device/types/KeyPairState'
 import type { GeneratedSecretKeyBundle } from './types/GeneratedSecretKeyBundle'
 import type { InitDeviceKeyBundle } from '../types/key-bundle/InitKeyBundleResponse'
 import type { OneTimePreKeyState } from '@/device/types/OneTimePreKeyState'
