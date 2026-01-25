@@ -6,7 +6,7 @@ import {
   DB_VERSION,
   ENCRYPTED_STORES,
   VeilDb,
-} from './veilDB'
+} from './VeilDB'
 import { computed, ref, type Ref } from 'vue'
 import { useUserStore } from '@/user/userStore'
 import { applyEncryptionMiddleware } from 'dexie-encrypted'

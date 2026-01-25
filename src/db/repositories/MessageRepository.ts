@@ -1,4 +1,4 @@
-import { MESSAGES_STORE } from '@/db/veilDB'
+import { MESSAGES_STORE } from '@/db/VeilDB'
 import type { StoredMessage } from '../../chat/types/chat/StoredMessage'
 import { Dexie } from 'dexie'
 import { useDbStore } from '../dbStore'
