@@ -3,6 +3,7 @@ import {
   DB_ENCRYPTION_STORE,
   DB_ENCRYPTION_STORE_KEY,
   DB_SCHEMA,
+  DB_VERSION,
   ENCRYPTED_STORES,
   VeilDb,
 } from './veilDB'
@@ -13,7 +14,6 @@ import { dbEncryptionRepository } from './repositories/dbEncryptionRepository'
 import { decryptDEK, encryptDEK } from './crypto/dek'
 
 export type DbStatus = 'initializing' | 'setup-required' | 'unlock-required' | 'ready' | 'error'
-export const DB_VERSION = 3
 
 export const useDbStore = defineStore('db', () => {
   const dbInstance: Ref<VeilDb | null> = ref(null)

@@ -1,10 +1,13 @@
 import { defineStore } from 'pinia'
-import { ref, type Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 import type { Chat } from './types/chat/Chat'
 import type { Contact } from '../contacts/types/Contact'
 import type { StoredMessage } from './types/chat/StoredMessage'
 import { messageRepository } from '@/db/repositories/messageRepository'
 import { useContactsStore } from '@/contacts/contactStore'
+import { useDbStore } from '@/db/dbStore'
+import { CHATS_STORE, CHATS_STORE_KEY } from '@/db/veilDB'
+import { debounce } from 'lodash'
 
 export const MESSAGE_LOAD_COUNT = 15
 export const MESSAGE_LOAD_STEP = 5
@@ -12,6 +15,9 @@ export const MESSAGE_LOAD_STEP = 5
 export const useChatsStore = defineStore(
   'chats',
   () => {
+    const dbStore = useDbStore()
+    const contactsStore = useContactsStore()
+
     const chats: Ref<Array<Chat>> = ref([])
     const currentChat: Ref<Chat | null> = ref(null)
 
@@ -182,6 +188,91 @@ export const useChatsStore = defineStore(
       }
     }
 
+    const isHydrated = ref(false)
+
+    async function hydrate() {
+      if (!dbStore.db) return
+
+      try {
+        console.log('[chatStore] Hydrating from DB...')
+
+        // Get the single record
+        const record = await dbStore.db.table(CHATS_STORE).get(CHATS_STORE_KEY)
+
+        if (record) {
+          // 1. Restore Chats Array
+          const restoredChats: Chat[] = record.chats || []
+
+          // 2. Restore References (Re-link contacts)
+          for (const chat of restoredChats) {
+            const contactUserId = chat.contact.userId
+            const contactRef = contactsStore.contacts.find((c) => c.userId === contactUserId)
+            if (contactRef) {
+              chat.contact = contactRef
+            }
+          }
+
+          chats.value = restoredChats
+
+          // 3. Restore Current Chat Selection
+          if (record.currentChat) {
+            // Find the reactive object in the array to ensure object identity
+            const activeChat = chats.value.find((c) => c.id === record.currentChat.id)
+            currentChat.value = activeChat || null
+
+            // Load messages immediately if a chat was open?
+            // loadMessagesFromDB()
+          }
+        }
+      } catch (e) {
+        console.error('[chatStore] Hydration failed:', e)
+      } finally {
+        isHydrated.value = true
+      }
+    }
+
+    const saveState = debounce(async () => {
+      if (!isHydrated.value || dbStore.dbStatus !== 'ready' || !dbStore.db) return
+
+      try {
+        const stateToSave = {
+          chats: JSON.parse(JSON.stringify(chats.value)),
+          currentChat: currentChat.value ? JSON.parse(JSON.stringify(currentChat.value)) : null,
+        }
+
+        await dbStore.db.table(CHATS_STORE).put(stateToSave, CHATS_STORE_KEY)
+      } catch (e) {
+        console.error('[chatStore] Persist failed:', e)
+      }
+    }, 1000)
+
+    // Trigger hydration when DB is unlocked/ready
+    watch(
+      () => dbStore.dbStatus,
+      (status) => {
+        if (status === 'ready') {
+          hydrate()
+        } else {
+          // If DB locks or resets, mark as not hydrated to stop saving
+          isHydrated.value = false
+          chats.value = []
+          currentChat.value = null
+        }
+      },
+      { immediate: true },
+    )
+
+    // Trigger save on changes
+    watch(
+      [chats, currentChat],
+      () => {
+        if (isHydrated.value) {
+          saveState()
+        }
+      },
+      { deep: true },
+    )
+
     return {
       chats,
       currentChat,
@@ -194,29 +285,5 @@ export const useChatsStore = defineStore(
       addMessageToChat,
     }
   },
-  {
-    persist: {
-      storage: localStorage,
-      pick: ['chats', 'currentChat'],
-      afterHydrate: (ctx) => {
-        // Restore references
-        // https://prazdevs.github.io/pinia-plugin-persistedstate/guide/limitations.html#references-are-not-persisted
-        const chats: Array<Chat> = ctx.store.$state['chats']
-        const currentChat: Chat | null | undefined = ctx.store.$state['currentChat']
-
-        if (currentChat) {
-          ctx.store.$state['currentChat'] = chats.find((val) => val.id === currentChat.id)
-        }
-
-        const contactsStore = useContactsStore()
-        for (const chat of chats) {
-          const contactUserId = chat.contact.userId
-          const contactRef = contactsStore.contacts.find((c) => c.userId === contactUserId)
-          if (contactRef) {
-            chat.contact = contactRef
-          }
-        }
-      },
-    },
-  },
+  {},
 )
