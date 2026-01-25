@@ -8,6 +8,7 @@ const props = defineProps<{
 
 // Model so that data flows both ways
 const modelValue = defineModel<string>()
+const focusReady = defineModel<boolean>('focusReady')
 
 // Custom event
 const emit = defineEmits<{
@@ -59,8 +60,16 @@ function togglePasswordVisibility() {
 }
 
 onMounted(() => {
-  console.log('PinInput mounted')
   inputRefs.value[0].focus()
+})
+
+// Needed in case of modals, as due to animation the focus might be
+// attempted after component is mounted but before the input
+// is actually visible & focusable
+watch(focusReady, (newVal) => {
+  if (newVal) {
+    inputRefs.value[0].focus()
+  }
 })
 </script>
 

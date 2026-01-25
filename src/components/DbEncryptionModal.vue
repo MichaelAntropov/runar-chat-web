@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { Modal } from 'bootstrap'
-import PinInput from './PinInput.vue' // Import the sub-component
+import PinInput from './PinInput.vue'
 import { useDbStore } from '@/db/dbStore'
 
 const PIN_LENGTH = 8
@@ -13,6 +13,7 @@ const bsModal = ref<Modal | null>(null)
 
 const step = ref<'SETUP_PROMPT' | 'SETUP_CREATE' | 'SETUP_VERIFY' | 'UNLOCK'>('UNLOCK')
 
+const focusReady = ref(false)
 const pin = ref<string>('')
 const confirmPin = ref<string>('')
 const errorMessage = ref<string>('')
@@ -28,6 +29,9 @@ onMounted(() => {
     }
 
     bsModal.value = new Modal(dbEncryptionModalRef.value, { backdrop: 'static', keyboard: false })
+    dbEncryptionModalRef.value.addEventListener('shown.bs.modal', () => {
+      focusReady.value = true
+    })
     bsModal.value.show()
   }
 })
@@ -91,7 +95,12 @@ const handleEncryptionDeclined = () => {
           <!-- UNLOCK MODE -->
           <div v-if="step === 'UNLOCK'">
             <p>Enter your PIN to decrypt your messages.</p>
-            <PinInput :length="PIN_LENGTH" v-model="pin" @complete="handleUnlock" />
+            <PinInput
+              :length="PIN_LENGTH"
+              v-model="pin"
+              v-model:focus-ready="focusReady"
+              @complete="handleUnlock"
+            />
             <div class="d-flex mt-3">
               <button class="btn btn-primary w-100" @click="handleUnlock">Continue</button>
             </div>
