@@ -7,9 +7,11 @@ import router from './router'
 import { useUserStore } from './user/userStore'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import { createPinia } from 'pinia'
+import i18n from './i18n'
 
 const app = createApp(App)
 app.use(router)
+app.use(i18n)
 
 const pinia = createPinia()
 pinia.use(piniaPluginPersistedstate)

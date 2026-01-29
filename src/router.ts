@@ -5,9 +5,9 @@ import ChatScreen from '@/components/ChatScreen.vue'
 import { useUserStore } from './user/userStore'
 
 const routes = [
-  { path: '/', component: LandingScreen },
-  { path: '/login', component: LoginScreen },
-  { path: '/chat', component: ChatScreen, meta: { requiresAuth: true } },
+  { name: 'LandingScreen', path: '/', component: LandingScreen },
+  { name: 'LoginScreen', path: '/login', component: LoginScreen },
+  { name: 'ChatScreen', path: '/chat', component: ChatScreen, meta: { requiresAuth: true } },
 ]
 
 const router = createRouter({

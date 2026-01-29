@@ -1,0 +1,30 @@
+{
+  "landing": {
+    "p": {
+      "description": "E2EE chat application using Java Quarkus framework, Vue.js, etc."
+    },
+    "button": {
+      "start": "Start chat"
+    }
+  },
+  "login": {
+    "label": {
+      "login": "Login",
+      "username": "Username",
+      "password": "Password",
+      "no-account": "Don't have an account?",
+      "register": "Register"
+    },
+    "button": {
+      "login": "Log In"
+    }
+  },
+  "navbar": {
+    "button": {
+      "login": "Log In",
+      "chats": "My chats",
+      "theme-light": "Light",
+      "theme-dark": "Dark"
+    }
+  }
+}

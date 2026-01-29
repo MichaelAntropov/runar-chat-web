@@ -1,0 +1,30 @@
+{
+  "landing": {
+    "p": {
+      "description": "E2EE чат-додаток, що використовує Java Quarkus framework, Vue.js тощо."
+    },
+    "button": {
+      "start": "Почати чат"
+    }
+  },
+  "login": {
+    "label": {
+      "login": "Увійти",
+      "username": "Ім'я користувача",
+      "password": "Пароль",
+      "no-account": "Немає акаунту?",
+      "register": "Зареєструватися"
+    },
+    "button": {
+      "login": "Увійти"
+    }
+  },
+  "navbar": {
+    "button": {
+      "login": "Увійти",
+      "chats": "Мої чати",
+      "theme-light": "Світла",
+      "theme-dark": "Темна"
+    }
+  }
+}
