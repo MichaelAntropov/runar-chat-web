@@ -15,12 +15,12 @@ function gotToLogIn() {
 </script>
 
 <template>
-  <header>
-    <NavBar />
-  </header>
-  <main>
-    <div class="container d-flex justify-content-center align-items-center vh-100">
-      <div class="text-center">
+  <div class="d-flex flex-column min-vh-100">
+    <header>
+      <NavBar />
+    </header>
+    <main class="flex-grow-1 d-flex align-items-center">
+      <div class="container text-center">
         <h1>VeilChat</h1>
         <p>{{ t('landing.p.description') }}</p>
         <p>
@@ -29,6 +29,6 @@ function gotToLogIn() {
           }}</a>
         </p>
       </div>
-    </div>
-  </main>
+    </main>
+  </div>
 </template>
