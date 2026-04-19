@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import NavBar from './NavBar.vue'
 import type { AuthRequest } from '@/auth/types/AuthRequest'
 import type { AuthResponse } from '@/auth/types/AuthResponse'
 import { useUserStore } from '@/user/userStore'
@@ -25,9 +24,7 @@ async function logIn() {
 
 async function authenticate(username: string, password: string) {
   await postAuth({ username, password }).then((response) => {
-    userStore.isAuthenticated = true
-    userStore.refreshToken = response.refreshToken
-    userStore.accessToken = response.accessToken
+    userStore.logIn(response.refreshToken, response.accessToken)
   })
 }
 
@@ -46,53 +43,45 @@ async function postAuth(data: AuthRequest): Promise<AuthResponse> {
 
   return await response.json()
 }
-
-if (userStore.isAuthenticated) {
-  router.push('/chat')
-}
 </script>
 
 <template>
-  <header>
-    <NavBar />
-  </header>
-  <main>
-    <div class="d-flex justify-content-center align-items-center min-vh-100">
-      <div class="card p-4 shadow">
-        <h2 class="text-center mb-4">{{ t('login.label.login') }}</h2>
-        <form>
-          <div class="mb-3">
-            <label for="username" class="form-label">{{ t('login.label.username') }}</label>
-            <input
-              type="text"
-              id="username"
-              class="form-control"
-              v-model="userCredentials.username"
-              required
-            />
-          </div>
-          <div class="mb-3">
-            <label for="password" class="form-label">{{ t('login.label.password') }}</label>
-            <input
-              type="password"
-              id="password"
-              class="form-control"
-              v-model="userCredentials.password"
-              required
-            />
-          </div>
-          <button type="submit" class="btn btn-primary w-100" @click.prevent="logIn">
-            {{ t('login.button.login') }}
-          </button>
-          <div class="text-center mt-3">
-            <p>
-              {{ t('login.label.no-account') }} <a href="#">{{ t('login.label.register') }}</a>
-            </p>
-          </div>
-        </form>
-      </div>
+  <div class="d-flex justify-content-center align-items-center min-vh-100">
+    <div class="card p-4 shadow">
+      <h2 class="text-center mb-4">{{ t('login.label.login') }}</h2>
+      <form>
+        <div class="mb-3">
+          <label for="username" class="form-label">{{ t('login.label.username') }}</label>
+          <input
+            type="text"
+            id="username"
+            class="form-control"
+            v-model="userCredentials.username"
+            required
+          />
+        </div>
+        <div class="mb-3">
+          <label for="password" class="form-label">{{ t('login.label.password') }}</label>
+          <input
+            type="password"
+            id="password"
+            class="form-control"
+            v-model="userCredentials.password"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-primary w-100" @click.prevent="logIn">
+          {{ t('login.button.login') }}
+        </button>
+        <div class="text-center mt-3">
+          <p>
+            {{ t('login.label.no-account') }}
+            <RouterLink to="/register">{{ t('login.label.register') }}</RouterLink>
+          </p>
+        </div>
+      </form>
     </div>
-  </main>
+  </div>
 </template>
 
 <style scoped>

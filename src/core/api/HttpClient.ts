@@ -9,9 +9,9 @@ export const http = axios.create({
 http.interceptors.request.use(
   async (config) => {
     const userStore = useUserStore()
-    const token = await userStore.getAccessToken()
 
-    if (token) {
+    if (userStore.isAuthenticated) {
+      const token = await userStore.getAccessToken()
       config.headers = config.headers ?? {}
       config.headers.Authorization = `Bearer ${token}`
     }

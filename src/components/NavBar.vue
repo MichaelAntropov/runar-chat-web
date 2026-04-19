@@ -43,7 +43,8 @@ const showLoginButton = computed(() => {
 <template>
   <nav class="navbar navbar-expand-md bg-body-tertiary rounded sticky-top shadow-sm">
     <div class="container-fluid">
-      <RouterLink class="navbar-brand fw-bold" to="/">VeilChat</RouterLink>
+      <RouterLink class="navbar-brand fw-bold" to="/">Runar Chat</RouterLink>
+
       <button
         class="navbar-toggler"
         type="button"

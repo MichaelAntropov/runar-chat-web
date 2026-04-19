@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import LoginForm from './LoginForm.vue'
 import NavBar from './NavBar.vue'
+import RegistrationForm from './RegistrationForm.vue'
 </script>
 
 <template>
@@ -8,6 +8,6 @@ import NavBar from './NavBar.vue'
     <NavBar />
   </header>
   <main>
-    <LoginForm />
+    <RegistrationForm />
   </main>
 </template>

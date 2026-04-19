@@ -7,6 +7,36 @@
       "start": "Start chat"
     }
   },
+  "register": {
+    "label": {
+      "register": "Register",
+      "username": "Username",
+      "password": "Password",
+      "password-prompt": "Password must be at least 8 characters and may contain latin letters, numbers, special characters.",
+      "confirm-password": "Confirm password",
+      "accept": "I accept that VeilChat is a test application",
+      "already-w-account": "Already have an account?",
+      "login": "Login"
+    },
+    "placeholder": {
+      "username": "Enter your username",
+      "password": "Enter a password",
+      "confirm-password": "Confirm password "
+    },
+    "error": {
+      "USERNAME_EMPTY": "Username can't be empty.",
+      "USERNAME_LENGTH": "Username length must be 5-64 characters.",
+      "USERNAME_NOT_ALLOWED": "Username already exists/not allowed",
+      "PWD_EMPTY": "Password can't be empty",
+      "PWD_LENGTH": "Password length must be 8-256 in length.",
+      "PWD_REGEX": "Password must be at least 8 characters and can only contain latin letters, numbers, special characters.",
+      "PWD_CONFIRM_NOT_MATCH": "Passwords don't match."
+    },
+    "button": {
+      "register": "Register",
+      "registering": "Registering..."
+    }
+  },
   "login": {
     "label": {
       "login": "Login",
