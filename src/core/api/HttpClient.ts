@@ -10,7 +10,13 @@ http.interceptors.request.use(
   async (config) => {
     const userStore = useUserStore()
 
-    if (userStore.isAuthenticated) {
+    if (userStore.authStatus === 'pre-upgrade') {
+      const token = userStore.authUpgradeToken
+      config.headers = config.headers ?? {}
+      config.headers.Authorization = `Bearer ${token}`
+    }
+
+    if (userStore.authStatus === 'upgraded') {
       const token = await userStore.getAccessToken()
       config.headers = config.headers ?? {}
       config.headers.Authorization = `Bearer ${token}`

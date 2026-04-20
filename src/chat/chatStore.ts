@@ -6,7 +6,7 @@ import type { StoredMessage } from './types/chat/StoredMessage'
 import { messageRepository } from '@/db/repositories/MessageRepository'
 import { useContactsStore } from '@/contacts/contactStore'
 import { useDbStore } from '@/db/dbStore'
-import { CHATS_STORE, CHATS_STORE_KEY } from '@/db/VeilDB'
+import { CHATS_STORE, CHATS_STORE_KEY } from '@/db/RunarDB'
 import { debounce } from 'lodash'
 
 export const MESSAGE_LOAD_COUNT = 15

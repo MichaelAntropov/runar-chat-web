@@ -46,7 +46,7 @@ export class WebsocketConnection {
         `chat-secure-http-upgrade#Authorization#Bearer ${token}`,
       )
 
-      this.socket = new WebSocket(`/ws/v1/connection/${deviceId}`, [
+      this.socket = new WebSocket(`/ws/v1/connection`, [
         'bearer-token-carrier',
         chatSecureHeaderProtocol,
       ])

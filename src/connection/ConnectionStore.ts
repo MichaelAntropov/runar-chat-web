@@ -37,9 +37,14 @@ export const useConnectionStore = defineStore('connection-store', () => {
 
   async function loadOfflineMessages() {
     const { registrationStatus, deviceId } = deviceStore
-    const { isAuthenticated } = userStore
+    const { isAuthenticated, authStatus } = userStore
 
-    if (isAuthenticated && registrationStatus === 'registered' && deviceId) {
+    if (
+      isAuthenticated &&
+      authStatus == 'upgraded' &&
+      registrationStatus === 'registered' &&
+      deviceId
+    ) {
       await fetchAndDecryptOfflineMessages()
     }
   }
@@ -47,23 +52,22 @@ export const useConnectionStore = defineStore('connection-store', () => {
   watch(
     () => [
       userStore.isAuthenticated,
+      userStore.authStatus,
       deviceStore.registrationStatus,
       deviceStore.deviceId,
       dbStore.dbStatus,
     ],
-    ([isAuthenticated, registrationStatus, deviceId, dbEncryptionStatus], oldValues = []) => {
+    (
+      [isAuthenticated, authStatus, registrationStatus, deviceId, dbEncryptionStatus],
+      oldValues = [],
+    ) => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const [wasAuthenticated, prevRegStatus, prevDeviceId, prevDbEncryptStatus] = oldValues as (
-        | boolean
-        | DeviceRegistrationStatus
-        | DbStatus
-        | string
-        | null
-        | undefined
-      )[]
+      const [wasAuthenticated, prevAuthStatus, prevRegStatus, prevDeviceId, prevDbEncryptStatus] =
+        oldValues as (boolean | DeviceRegistrationStatus | DbStatus | string | null | undefined)[]
 
       const canConnect =
         isAuthenticated &&
+        authStatus === 'upgraded' &&
         registrationStatus === 'registered' &&
         typeof deviceId === 'string' &&
         dbEncryptionStatus === 'ready'

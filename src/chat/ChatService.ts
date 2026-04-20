@@ -24,8 +24,8 @@ import {
   ratchetDecrypt,
   ratchetEncrypt,
 } from './crypto/ratchet'
-import { chatStateRepository } from '@/db/repositories/chatStateRepository'
-import { preKeyRepository } from '@/db/repositories/preKeyRepository'
+import { chatStateRepository } from '@/db/repositories/ChatStateRepository'
+import { preKeyRepository } from '@/db/repositories/PreKeyRepository'
 import { chatApi } from './api/chatApi'
 import { contactApi } from '@/contacts/contactApi'
 import type { FoundUser } from '@/contacts/types/FindUserResponse'
@@ -95,6 +95,7 @@ export async function sendMessageInCurrentChat(content: string, retryCount = 0) 
       )
 
       return {
+        receiverUserId: chatState.userId,
         receiverDeviceId: chatState.deviceId,
         receiverPreKeyId: chatState.deviceId,
         receiverOneTimePreKeyId: chatState.preKeyIdUsed,
@@ -108,7 +109,6 @@ export async function sendMessageInCurrentChat(content: string, retryCount = 0) 
   )
 
   const messagePayload: MessagePayload = {
-    senderDeviceId: deviceStore.deviceId,
     deviceMessages: messagePayloads,
   }
 
@@ -184,7 +184,7 @@ export async function fetchAndDecryptOfflineMessages() {
 
   console.log('fetchAndDecryptOfflineMessages() - Fetching and decrypting offline messages...')
 
-  const offlineMessages = await chatApi.postReceiveOfflineMessages(deviceStore.deviceId)
+  const offlineMessages = await chatApi.postReceiveOfflineMessages()
   offlineMessages.sort((msgA, msgB) => Date.parse(msgA.createdAt) - Date.parse(msgB.createdAt))
 
   for (const msg of offlineMessages) {

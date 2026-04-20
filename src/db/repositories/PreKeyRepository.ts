@@ -1,5 +1,5 @@
 import type { OneTimePreKeyState } from '@/device/types/OneTimePreKeyState'
-import { PRE_KEYS_STORE } from '../VeilDB'
+import { PRE_KEYS_STORE } from '../RunarDB'
 import { useDbStore } from '../dbStore'
 
 export class PreKeyRepository {

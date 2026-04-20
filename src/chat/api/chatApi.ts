@@ -101,8 +101,8 @@ export const chatApi = {
     }
   },
 
-  async postReceiveOfflineMessages(deviceId: string): Promise<OfflineMessage[]> {
-    const result = await http.post<OfflineMessagesResponses>(`/api/v1/messages/receive/${deviceId}`)
+  async postReceiveOfflineMessages(): Promise<OfflineMessage[]> {
+    const result = await http.post<OfflineMessagesResponses>(`/api/v1/messages/receive`)
 
     return result.data.messages.map(
       (msg): OfflineMessage => ({

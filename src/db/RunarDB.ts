@@ -6,7 +6,7 @@ import type { KeyBundle } from '@/device/types/KeyBundle'
 import type { DbEncryptionState } from './types/DbEncryptionState'
 import { NON_INDEXED_FIELDS } from 'dexie-encrypted'
 
-const DB_SCHEMA_PREFIX = 'veil-db-'
+const DB_SCHEMA_PREFIX = 'runar-db-'
 
 export const KEYS_STORE = 'keys'
 export const PRE_KEYS_STORE = 'pre-keys'
@@ -42,7 +42,7 @@ export const ENCRYPTED_STORES = {
   [CONTACTS_STORE]: NON_INDEXED_FIELDS,
 }
 
-export class VeilDb extends Dexie {
+export class RunarDb extends Dexie {
   [KEYS_STORE]!: Table<KeyBundle, string>;
   [PRE_KEYS_STORE]!: EntityTable<OneTimePreKeyState, 'id'>;
   [MESSAGES_STORE]!: EntityTable<StoredMessage, 'id'>;

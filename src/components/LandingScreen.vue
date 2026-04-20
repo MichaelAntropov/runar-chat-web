@@ -21,7 +21,7 @@ function gotToLogIn() {
     </header>
     <main class="flex-grow-1 d-flex align-items-center">
       <div class="container text-center">
-        <h1>VeilChat</h1>
+        <h1>Runar Chat</h1>
         <p>{{ t('landing.p.description') }}</p>
         <p>
           <a class="btn btn-lg btn-primary" href="/login" @click.prevent="gotToLogIn">{{

@@ -1,5 +1,5 @@
 import type { ChatState } from '@/chat/types/chat/ChatState'
-import { CHAT_STATES_STORE } from '../VeilDB'
+import { CHAT_STATES_STORE } from '../RunarDB'
 import { useDbStore } from '../dbStore'
 
 export class ChatStateRepository {

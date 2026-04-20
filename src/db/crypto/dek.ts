@@ -2,12 +2,15 @@ import { argon2id } from 'hash-wasm'
 
 const ARGON2_CONFIG = {
   iterations: 1,
-  memorySize: 2048,
-  parallelism: 4,
+  memorySize: 1048576, // 1048576 - 1 GiB
+  parallelism: 1,
   hashLength: 32,
 }
 
-async function deriveKEK(password: string, salt: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
+export async function deriveKEK(
+  password: string,
+  salt: Uint8Array,
+): Promise<Uint8Array<ArrayBuffer>> {
   const result = await argon2id({
     password: password,
     salt: salt,

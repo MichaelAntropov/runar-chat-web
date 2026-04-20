@@ -1,9 +1,9 @@
 export interface MessagePayload {
-  senderDeviceId: string
   deviceMessages: DeviceMessagePayload[]
 }
 
 export interface DeviceMessagePayload {
+  receiverUserId: string
   receiverDeviceId: string
 
   receiverPreKeyId: string | null

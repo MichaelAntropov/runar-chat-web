@@ -15,16 +15,12 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '^/api/v1/auth(/|$)': {
+      '^/api/v1(/|$)': {
         target: 'http://localhost:8081/',
         changeOrigin: true,
       },
-      '^/api/v1(/|$)': {
-        target: 'http://localhost:8082/',
-        changeOrigin: true,
-      },
       '^/ws/v1/connection(/|$)': {
-        target: 'ws://localhost:8082/',
+        target: 'ws://localhost:8081/',
         ws: true,
       },
     },

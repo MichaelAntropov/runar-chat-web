@@ -19,8 +19,8 @@ app.use(pinia)
 
 const userStore = useUserStore()
 
-userStore.$subscribe((mutation, state) => {
-  if (state.isAuthenticated === false) {
+userStore.$subscribe(() => {
+  if (userStore.isAuthenticated === false) {
     router.push('/login')
   }
 })

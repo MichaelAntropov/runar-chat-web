@@ -5,8 +5,8 @@ import {
   DB_SCHEMA,
   DB_VERSION,
   ENCRYPTED_STORES,
-  VeilDb,
-} from './VeilDB'
+  RunarDb,
+} from './RunarDB'
 import { computed, ref, type Ref } from 'vue'
 import { useUserStore } from '@/user/userStore'
 import { applyEncryptionMiddleware } from 'dexie-encrypted'
@@ -16,7 +16,7 @@ import { decryptDEK, encryptDEK } from './crypto/dek'
 export type DbStatus = 'initializing' | 'setup-required' | 'unlock-required' | 'ready' | 'error'
 
 export const useDbStore = defineStore('db', () => {
-  const dbInstance: Ref<VeilDb | null> = ref(null)
+  const dbInstance: Ref<RunarDb | null> = ref(null)
   const dbStatus: Ref<DbStatus | null> = ref('initializing')
   const dek: Ref<Uint8Array<ArrayBuffer> | null> = ref(null)
 
@@ -26,7 +26,7 @@ export const useDbStore = defineStore('db', () => {
     const userId = userStore.principal?.id
     if (!userId) return
 
-    const discoveryDb = new VeilDb(userId)
+    const discoveryDb = new RunarDb(userId)
     discoveryDb.version(DB_VERSION).stores(DB_SCHEMA)
 
     try {
@@ -51,7 +51,7 @@ export const useDbStore = defineStore('db', () => {
     const userId = userStore.principal?.id
     if (!userId) return
 
-    const veilDb = new VeilDb(userId)
+    const veilDb = new RunarDb(userId)
 
     if (key) {
       console.log('[dbStore] - Starting DB with encryption')
@@ -98,7 +98,7 @@ export const useDbStore = defineStore('db', () => {
     const userId = userStore.principal?.id
     if (!userId) return
 
-    const discoveryDb = new VeilDb(userId)
+    const discoveryDb = new RunarDb(userId)
     discoveryDb.version(DB_VERSION).stores(DB_SCHEMA)
     const state = await discoveryDb.table(DB_ENCRYPTION_STORE).get(DB_ENCRYPTION_STORE_KEY)
     await discoveryDb.close()

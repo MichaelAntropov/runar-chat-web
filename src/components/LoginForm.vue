@@ -24,7 +24,7 @@ async function logIn() {
 
 async function authenticate(username: string, password: string) {
   await postAuth({ username, password }).then((response) => {
-    userStore.logIn(response.refreshToken, response.accessToken)
+    userStore.logIn(response.token)
   })
 }
 

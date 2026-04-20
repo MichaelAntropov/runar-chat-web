@@ -1,4 +1,4 @@
-import { DB_ENCRYPTION_STORE, DB_ENCRYPTION_STORE_KEY } from '../VeilDB'
+import { DB_ENCRYPTION_STORE, DB_ENCRYPTION_STORE_KEY } from '../RunarDB'
 import { useDbStore } from '../dbStore'
 import type { DbEncryptionState } from '../types/DbEncryptionState'
 

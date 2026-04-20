@@ -3,7 +3,7 @@ import type { Contact } from './types/Contact'
 import { ref, watch, type Ref } from 'vue'
 import { debounce } from 'lodash'
 import { useDbStore } from '@/db/dbStore'
-import { CONTACTS_STORE, CONTACTS_STORE_KEY } from '@/db/VeilDB'
+import { CONTACTS_STORE, CONTACTS_STORE_KEY } from '@/db/RunarDB'
 
 export const useContactsStore = defineStore('contacts', () => {
   const dbStore = useDbStore()
