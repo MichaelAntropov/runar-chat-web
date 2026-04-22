@@ -24,7 +24,7 @@ watch(searchInput, async () => {
   let searchValue = searchInput.value
   searchValue = searchValue.replace('@', '')
 
-  if (searchValue && searchValue.length > 2) {
+  if (searchValue && searchValue.length > 4) {
     try {
       const params = new URLSearchParams()
       params.append('username', searchValue)
