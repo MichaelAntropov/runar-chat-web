@@ -14,7 +14,7 @@
       "password": "Password",
       "password-prompt": "Password must be at least 8 characters and may contain latin letters, numbers, special characters.",
       "confirm-password": "Confirm password",
-      "accept": "I accept that VeilChat is a test application",
+      "accept": "I accept that Runar Chat is a test application",
       "already-w-account": "Already have an account?",
       "login": "Login"
     },
@@ -46,7 +46,16 @@
       "register": "Register"
     },
     "button": {
-      "login": "Log In"
+      "login": "Log In",
+      "logging-in": "Logging In..."
+    },
+    "error": {
+      "USERNAME_EMPTY": "Username can't be empty.",
+      "USERNAME_LENGTH": "Username length must be 5-64 characters.",
+      "PWD_EMPTY": "Password can't be empty.",
+      "PWD_LENGTH": "Password length must be 8-256 in length.",
+      "PWD_REGEX": "Password must be at least 8 characters and can only contain latin letters, numbers, special characters.",
+      "INVALID_CREDENTIALS": "User not found or password is invalid."
     }
   },
   "navbar": {
