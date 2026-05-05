@@ -4,4 +4,6 @@ export interface RegisterDeviceRequest {
   signedPublicPreKey: string // Base64 encoded
   preKeySignature: string // Base64 encoded
   oneTimePublicPreKeys: string[] // Base64 encoded
+
+  deviceName: string
 }

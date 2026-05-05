@@ -17,7 +17,7 @@ onMounted(() => {
   dbStore.init()
 })
 
-const sidebarWidth: Ref<number> = ref(400)
+const sidebarWidth: Ref<number> = ref(460)
 const isResizing: Ref<boolean> = ref(false)
 
 function resizeSidebar(event: MouseEvent) {

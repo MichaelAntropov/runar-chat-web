@@ -11,6 +11,7 @@ import type { RegisterDeviceResponse } from '@/device/types/RegisterDeviceRespon
 import type { KeyBundle } from './types/KeyBundle'
 import { KEYS_STORE, PRE_KEYS_STORE, IDENTITY_KEY_BUNDLE_KEY } from '../db/RunarDB'
 import { useDbStore } from '@/db/dbStore'
+import { getDeviceLabel } from './deviceLabel'
 
 export type DeviceRegistrationStatus =
   | 'loading'
@@ -228,6 +229,7 @@ export const useDeviceStore = defineStore('device', () => {
       oneTimePublicPreKeys: oneTimePreKeys.value.map((key) =>
         Base64.fromUint8Array(key.publicKey!),
       ),
+      deviceName: getDeviceLabel(),
     }
 
     console.log('Sending registration request...')
