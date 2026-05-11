@@ -185,7 +185,7 @@ function createPrincipalFromJwtToken(token: string): Principal | null {
 
   const newPrincipal: Principal = {
     id: decoded.sub,
-    name: decoded,
+    name: decoded.upn,
   }
 
   return newPrincipal

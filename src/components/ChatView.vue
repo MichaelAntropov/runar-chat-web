@@ -5,6 +5,9 @@ import { MESSAGE_LOAD_STEP, useChatsStore } from '@/chat/chatStore'
 import { useUserStore } from '@/user/userStore'
 import { sendMessageInCurrentChat } from '@/chat/ChatService'
 
+defineProps<{ isMobile: boolean }>()
+const emit = defineEmits(['back'])
+
 const messageTextArea = useTemplateRef<HTMLTextAreaElement>('message-text-area')
 const messagesContainer = ref<HTMLElement>()
 
@@ -218,35 +221,42 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="container-fluid overflow-y-auto" ref="messagesContainer">
-    <div class="container p-2 mb-auto h-100" style="max-width: 900px">
-      <div class="d-flex flex-column align-items-end">
-        <template v-for="msg in chatStore.currentChatMessages" :key="msg.id">
-          <MessageBubble :message="msg" />
-        </template>
+  <div class="h-100 d-flex flex-column">
+    <!-- Mobile header -->
+    <div v-if="isMobile" class="p-2 border-bottom">
+      <button class="btn btn-sm btn-light" @click="emit('back')">← Back</button>
+    </div>
+
+    <div class="container-fluid overflow-y-auto" ref="messagesContainer">
+      <div class="container p-2 mb-auto h-100" style="max-width: 900px">
+        <div class="d-flex flex-column align-items-end">
+          <template v-for="msg in chatStore.currentChatMessages" :key="msg.id">
+            <MessageBubble :message="msg" />
+          </template>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="container pb-4 pt-2 mt-auto" style="max-width: 900px" v-if="chatStore.currentChat">
-    <form class="d-flex w-100" role="send" @submit.prevent>
-      <textarea
-        ref="message-text-area"
-        class="form-control me-2 flex-grow-1 custom-textarea"
-        placeholder="Type your message..."
-        aria-label="Send"
-        rows="1"
-        @input="adjustMessageTextAreaHeight"
-        @keypress.enter="handleEnterKeyPressed"
-      ></textarea>
-      <div class="mt-auto">
-        <button class="btn btn-primary" @click="sendMessage">
-          <div style="rotate: 45deg" aria-label="Send">
-            <i class="bi bi-send"></i>
-          </div>
-        </button>
-      </div>
-    </form>
+    <div class="container pb-4 pt-2 mt-auto" style="max-width: 900px" v-if="chatStore.currentChat">
+      <form class="d-flex w-100" role="send" @submit.prevent>
+        <textarea
+          ref="message-text-area"
+          class="form-control me-2 flex-grow-1 custom-textarea"
+          placeholder="Type your message..."
+          aria-label="Send"
+          rows="1"
+          @input="adjustMessageTextAreaHeight"
+          @keypress.enter="handleEnterKeyPressed"
+        ></textarea>
+        <div class="mt-auto">
+          <button class="btn btn-primary" @click="sendMessage">
+            <div style="rotate: 45deg" aria-label="Send">
+              <i class="bi bi-send"></i>
+            </div>
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </template>
 

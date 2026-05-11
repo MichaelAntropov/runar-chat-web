@@ -1,27 +1,17 @@
 <script setup lang="ts">
-import { setLocale, type AppLocale } from '@/i18n'
+import { setLocale, availableLocales } from '@/i18n'
 import { useTheme } from '@/theme/useTheme'
 import { useUserStore } from '@/user/userStore'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
-interface LocaleOption {
-  code: AppLocale
-  label: string
-}
-
-const { t, locale } = useI18n()
+const { locale, t } = useI18n()
 
 const route = useRoute()
 const userStore = useUserStore()
 
 const { currentTheme, setTheme } = useTheme()
-
-const availableLocales: LocaleOption[] = [
-  { code: 'en', label: 'English' },
-  { code: 'ua', label: 'Українська' },
-]
 
 const loginBtnContent = computed(() => {
   if (!userStore.isAuthenticated) {

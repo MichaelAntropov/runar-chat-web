@@ -8,6 +8,16 @@ export type AppLocale = 'en' | 'ua'
 const savedLocale = localStorage.getItem('user-locale') as AppLocale | null
 const locale = savedLocale || 'en'
 
+export interface LocaleOption {
+  code: AppLocale
+  label: string
+}
+
+export const availableLocales: LocaleOption[] = [
+  { code: 'en', label: 'English' },
+  { code: 'ua', label: 'Українська' },
+]
+
 const i18n = createI18n({
   legacy: false,
   locale: locale,

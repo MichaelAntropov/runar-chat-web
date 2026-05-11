@@ -65,5 +65,44 @@
       "theme-light": "Світла",
       "theme-dark": "Темна"
     }
+  },
+  "sidebar": {
+    "menu": {
+      "my-profile": "Мій Профіль",
+      "saved-messages": "Збережені Повідомлення (Ви)",
+      "settings": "Налаштування",
+      "theme": "Тема",
+      "log-out": "Вийти"
+    },
+    "panel-header": {
+      "my-profile": "Мій Профіль",
+      "settings": "Налаштування",
+      "devices": "Пристрої",
+      "theme": "Тема",
+      "language": "Мова"
+    }
+  },
+  "settings": {
+    "menu": {
+      "my-profile": "Мій Профіль",
+      "devices": "Пристрої",
+      "data-and-storage": "Дані та Сховище",
+      "privacy-and-security": "Конфіденційність та Безпека",
+      "theme": "Тема",
+      "language": "Мова"
+    },
+    "theme": {
+      "light": "Світла",
+      "dark": "Темна"
+    },
+    "devices": {
+      "this-device": "Цей пристрій:",
+      "no-name": "Назву пристрою не вказано",
+      "registered-at": "Зареєстровано:",
+      "last-connection-at": "Останнє підключення:",
+      "not-found": "Не знайдено",
+      "other-devices": "Інші пристрої:",
+      "no-other": "Інших пристроїв немає"
+    }
   }
 }

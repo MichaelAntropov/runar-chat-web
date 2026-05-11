@@ -65,5 +65,44 @@
       "theme-light": "Light",
       "theme-dark": "Dark"
     }
+  },
+  "sidebar": {
+    "menu": {
+      "my-profile": "My Profile",
+      "saved-messages": "Saved Messages (You)",
+      "settings": "Settings",
+      "theme": "Theme",
+      "log-out": "Log Out"
+    },
+    "panel-header": {
+      "my-profile": "My Profile",
+      "settings": "Settings",
+      "devices": "Devices",
+      "theme": "Theme",
+      "language": "Language"
+    }
+  },
+  "settings": {
+    "menu": {
+      "my-profile": "My Profile",
+      "devices": "Devices",
+      "data-and-storage": "Data and Storage",
+      "privacy-and-security": "Privacy and Security",
+      "theme": "Theme",
+      "language": "Language"
+    },
+    "theme": {
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "devices": {
+      "this-device": "This device:",
+      "no-name": "Device name not provided",
+      "registered-at": "Registered at:",
+      "last-connection-at": "Last connection at:",
+      "not-found": "Not found",
+      "other-devices": "Other devices:",
+      "no-other": "No other devices"
+    }
   }
 }
