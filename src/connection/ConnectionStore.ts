@@ -2,7 +2,6 @@ import {
   inboundMessageFromWebsocketMessage,
   type InboundMessage,
 } from '@/chat/types/message/InboundMessage'
-import type { WebsocketMessage } from '@/chat/types/message/WebsocketMessage'
 import { useDeviceStore, type DeviceRegistrationStatus } from '@/device/deviceStore'
 import { useUserStore } from '@/user/userStore'
 import { defineStore } from 'pinia'
@@ -13,6 +12,7 @@ import {
   fetchAndDecryptOfflineMessages,
 } from '@/chat/ChatService'
 import { useDbStore, type DbStatus } from '@/db/dbStore'
+import type { MessageWsMessage, PresenceWsMessage } from './wsEventTypes'
 
 export const useConnectionStore = defineStore('connection-store', () => {
   const userStore = useUserStore()
@@ -29,9 +29,22 @@ export const useConnectionStore = defineStore('connection-store', () => {
       }
     },
     onMessage: (event: MessageEvent) => {
-      const websocketMessage: WebsocketMessage = JSON.parse(event.data)
-      const inboundMessage: InboundMessage = inboundMessageFromWebsocketMessage(websocketMessage)
-      decryptInboundMessageAndPushToChat(inboundMessage)
+      const data: Record<string, unknown> = JSON.parse(event.data)
+
+      if (data.type === 'PRESENCE') {
+        const msg = data as unknown as PresenceWsMessage
+        console.log('[connection-store] - Presence event received for user:', msg.payload.userId)
+        return
+      }
+
+      if (data.type === 'MESSAGE') {
+        const msg = data as unknown as MessageWsMessage
+        const inboundMessage: InboundMessage = inboundMessageFromWebsocketMessage(msg.payload)
+        decryptInboundMessageAndPushToChat(inboundMessage)
+        return
+      }
+
+      console.error('[connection-store] - Unknown message type received:', JSON.stringify(data))
     },
   })
 
@@ -84,4 +97,8 @@ export const useConnectionStore = defineStore('connection-store', () => {
     },
     { immediate: true },
   )
+
+  return {
+    webSocketConnectionStatus,
+  }
 })
