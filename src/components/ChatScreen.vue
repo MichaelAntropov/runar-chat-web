@@ -6,12 +6,14 @@ import LoadingOverlay from './LoadingOverlay.vue'
 import { useDeviceStore } from '@/device/deviceStore'
 import { useConnectionStore } from '@/connection/connectionStore'
 import { useDbStore } from '@/db/dbStore'
+import { usePresenceStore } from '@/presence/presenceStore'
 import DbEncryptionModal from './DbEncryptionModal.vue'
 import SideBar from './SideBar.vue'
 
 const deviceStore = useDeviceStore()
 const dbStore = useDbStore()
 useConnectionStore()
+usePresenceStore()
 
 onMounted(() => {
   checkScreen()

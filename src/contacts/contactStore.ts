@@ -81,6 +81,7 @@ export const useContactsStore = defineStore('contacts', () => {
 
   return {
     contacts,
+    isHydrated,
     addNewContact,
   }
 })

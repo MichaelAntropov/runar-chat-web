@@ -12,6 +12,7 @@ import {
   fetchAndDecryptOfflineMessages,
 } from '@/chat/ChatService'
 import { useDbStore, type DbStatus } from '@/db/dbStore'
+import { usePresenceStore } from '@/presence/presenceStore'
 import type { MessageWsMessage, PresenceWsMessage } from './wsEventTypes'
 
 export const useConnectionStore = defineStore('connection-store', () => {
@@ -33,7 +34,8 @@ export const useConnectionStore = defineStore('connection-store', () => {
 
       if (data.type === 'PRESENCE') {
         const msg = data as unknown as PresenceWsMessage
-        console.log('[connection-store] - Presence event received for user:', msg.payload.userId)
+        const presenceStore = usePresenceStore()
+        presenceStore.handlePresenceUpdate(msg.payload)
         return
       }
 
