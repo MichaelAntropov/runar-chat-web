@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Chat } from '@/chat/types/chat/Chat'
 import { useChatsStore } from '@/chat/chatStore'
+import { usePresenceStore } from '@/presence/presenceStore'
 import { computed, type ComputedRef } from 'vue'
 
 const props = defineProps<{
@@ -8,9 +9,14 @@ const props = defineProps<{
 }>()
 
 const chatStore = useChatsStore()
+const presenceStore = usePresenceStore()
 
 const isSelected: ComputedRef<boolean> = computed(() => {
   return chatStore.currentChat?.id === props.chat.id
+})
+
+const presence = computed(() => {
+  return presenceStore.presenceMap.get(props.chat.contact.userId) ?? null
 })
 
 function changeCurrentChat(chatId: string) {
@@ -26,17 +32,16 @@ function changeCurrentChat(chatId: string) {
     :class="isSelected ? 'list-group-item-dark' : ''"
     @click="changeCurrentChat(chat.id)"
   >
-    <div class="flex-shrink-0">
+    <div class="flex-shrink-0 position-relative">
       <p
         v-bind:data-letters="props.chat.contact.username.charAt(0).toUpperCase()"
         class="m-0 me-1"
       ></p>
-      <!-- <img
-        class="img-thumbnail rounded-circle border-0 p-0 me-1"
-        style="height: 3.5em"
-        :alt="props.chat.contact.username.charAt(0).toUpperCase()"
-        src="/src/assets/134d2f60-2cdc-48c8-8050-e8f7fc34f967.jpg"
-      /> -->
+      <span
+        v-if="presence !== null"
+        class="presence-dot"
+        :class="presence.isOnline ? 'online' : 'offline'"
+      ></span>
     </div>
     <div class="ms-1 d-flex flex-grow-1 flex-column text-truncate align-self-center">
       <div class="d-flex justify-content-between">
@@ -60,6 +65,24 @@ function changeCurrentChat(chatId: string) {
 </template>
 
 <style scoped>
+.presence-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--bs-body-bg);
+}
+
+.presence-dot.online {
+  background-color: #22c55e;
+}
+
+.presence-dot.offline {
+  background-color: #9ca3af;
+}
+
 [data-letters]:before {
   content: attr(data-letters);
   display: inline-block;
