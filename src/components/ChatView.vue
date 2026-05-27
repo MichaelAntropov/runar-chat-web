@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
+import ChatHeader from './ChatHeader.vue'
 import MessageBubble from './MessageBubble.vue'
 import { MESSAGE_LOAD_STEP, useChatsStore } from '@/chat/chatStore'
 import { useUserStore } from '@/user/userStore'
@@ -222,10 +223,7 @@ onUnmounted(() => {
 
 <template>
   <div class="h-100 d-flex flex-column">
-    <!-- Mobile header -->
-    <div v-if="isMobile" class="p-2 border-bottom">
-      <button class="btn btn-sm btn-light" @click="emit('back')">← Back</button>
-    </div>
+    <ChatHeader :isMobile="isMobile" @back="emit('back')" />
 
     <div class="container-fluid overflow-y-auto" ref="messagesContainer">
       <div class="container p-2 mb-auto h-100" style="max-width: 900px">
@@ -262,8 +260,8 @@ onUnmounted(() => {
 
 <style>
 .custom-textarea {
-  max-height: 400px; /* Maximum height before scrolling */
-  overflow-y: auto; /* Scrollable after reaching max height */
-  resize: none; /* Prevent manual resizing */
+  max-height: 400px;
+  overflow-y: auto;
+  resize: none;
 }
 </style>

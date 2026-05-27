@@ -104,5 +104,14 @@
       "other-devices": "Other devices:",
       "no-other": "No other devices"
     }
+  },
+  "presence": {
+    "online": "Online",
+    "last-seen-recently": "Last seen recently",
+    "last-seen-just-now": "Last seen just now",
+    "last-seen-minutes": "Last seen {n}m ago",
+    "last-seen-hours": "Last seen {n}h ago",
+    "last-seen-days": "Last seen {n}d ago",
+    "last-seen-date": "Last seen {date}"
   }
 }

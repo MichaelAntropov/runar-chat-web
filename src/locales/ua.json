@@ -104,5 +104,14 @@
       "other-devices": "Інші пристрої:",
       "no-other": "Інших пристроїв немає"
     }
+  },
+  "presence": {
+    "online": "У мережі",
+    "last-seen-recently": "У мережі нещодавно",
+    "last-seen-just-now": "Щойно",
+    "last-seen-minutes": "У мережі {n} хв тому",
+    "last-seen-hours": "У мережі {n} год тому",
+    "last-seen-days": "У мережі {n} дн. тому",
+    "last-seen-date": "Останній раз у мережі {date}"
   }
 }

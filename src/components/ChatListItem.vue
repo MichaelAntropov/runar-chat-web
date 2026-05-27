@@ -38,9 +38,8 @@ function changeCurrentChat(chatId: string) {
         class="m-0 me-1"
       ></p>
       <span
-        v-if="presence !== null"
-        class="presence-dot"
-        :class="presence.isOnline ? 'online' : 'offline'"
+        v-if="presence?.isOnline"
+        class="presence-dot online"
       ></span>
     </div>
     <div class="ms-1 d-flex flex-grow-1 flex-column text-truncate align-self-center">
@@ -77,10 +76,6 @@ function changeCurrentChat(chatId: string) {
 
 .presence-dot.online {
   background-color: #22c55e;
-}
-
-.presence-dot.offline {
-  background-color: #9ca3af;
 }
 
 [data-letters]:before {
