@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useChatsStore } from '@/chat/chatStore'
 import { usePresenceStore } from '@/presence/presenceStore'
+import type { PresenceUpdate } from '@/presence/types/PresenceUpdate'
+import type { Chat } from '@/chat/types/chat/Chat'
 
 defineProps<{ isMobile: boolean }>()
 const emit = defineEmits<{ back: [] }>()
@@ -11,7 +13,7 @@ const chatStore = useChatsStore()
 const presenceStore = usePresenceStore()
 const { t } = useI18n()
 
-const reactiveNow = ref(Date.now())
+const reactiveNow: Ref<number> = ref(Date.now())
 
 onMounted(() => {
   statusRefreshTimer = window.setInterval(() => {
@@ -25,19 +27,19 @@ onUnmounted(() => {
 
 let statusRefreshTimer: number
 
-const currentChat = computed(() => chatStore.currentChat)
+const currentChat: ComputedRef<Chat | null> = computed(() => chatStore.currentChat)
 
-const presence = computed(() => {
+const presence: ComputedRef<PresenceUpdate | null> = computed(() => {
   const chat = currentChat.value
   return chat ? (presenceStore.presenceMap.get(chat.contact.userId) ?? null) : null
 })
 
-const avatarLetter = computed(() => {
+const avatarLetter: ComputedRef<string> = computed(() => {
   const name = currentChat.value?.contact?.username
   return name ? name.charAt(0).toUpperCase() : '?'
 })
 
-const statusText = computed(() => {
+const statusText: ComputedRef<string | null> = computed(() => {
   const now = reactiveNow.value
 
   if (!presence.value) return null
