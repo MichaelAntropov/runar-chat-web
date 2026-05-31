@@ -6,6 +6,7 @@ import MyProfilePanel from './MyProfilePanel.vue'
 import ThemeSettingsPanel from './settings/ThemeSettingsPanel.vue'
 import LanguageSettingsPanel from './settings/LanguageSettingsPanel.vue'
 import DevicesSettingsPanel from './settings/DevicesSettingsPanel.vue'
+import PrivacyAndSecurityPanel from './settings/PrivacyAndSecurityPanel.vue'
 
 const props = defineProps<{
   stack: string[]
@@ -29,6 +30,8 @@ const resolveComponent = (panel: string) => {
       return ThemeSettingsPanel
     case 'language':
       return LanguageSettingsPanel
+    case 'privacy-and-security':
+      return PrivacyAndSecurityPanel
   }
 }
 </script>

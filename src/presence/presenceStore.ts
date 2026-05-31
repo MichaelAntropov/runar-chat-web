@@ -1,5 +1,6 @@
 import { useConnectionStore } from '@/connection/connectionStore'
 import { useContactsStore } from '@/contacts/contactStore'
+import { useSettingsStore } from '@/settings/settingsStore'
 import { defineStore } from 'pinia'
 import { ref, watch, type Ref } from 'vue'
 import { presenceApi } from './presenceApi'
@@ -8,6 +9,7 @@ import type { PresenceUpdate } from './types/PresenceUpdate'
 export const usePresenceStore = defineStore('presence', () => {
   const connectionStore = useConnectionStore()
   const contactsStore = useContactsStore()
+  const settingsStore = useSettingsStore()
 
   const presenceMap: Ref<Map<string, PresenceUpdate>> = ref(new Map())
   const subscribedUserIds: Ref<string[]> = ref([])
@@ -16,6 +18,14 @@ export const usePresenceStore = defineStore('presence', () => {
     subscribedUserIds.value = userIds
 
     if (connectionStore.webSocketConnectionStatus !== 'connected') {
+      return
+    }
+
+    if (settingsStore.onlineVisibility === null) {
+      await settingsStore.fetchSettings()
+    }
+
+    if (settingsStore.onlineVisibility === 'NONE') {
       return
     }
 
@@ -35,8 +45,17 @@ export const usePresenceStore = defineStore('presence', () => {
     }
   }
 
+  function clearSubscriptions() {
+    subscribedUserIds.value = []
+    presenceMap.value.clear()
+  }
+
   function handlePresenceUpdate(update: PresenceUpdate) {
-    presenceMap.value.set(update.userId, update)
+    if (update.isOnline === null) {
+      presenceMap.value.delete(update.userId)
+    } else {
+      presenceMap.value.set(update.userId, update)
+    }
   }
 
   watch(
@@ -67,6 +86,7 @@ export const usePresenceStore = defineStore('presence', () => {
     presenceMap,
     subscribedUserIds,
     subscribeToUsers,
+    clearSubscriptions,
     handlePresenceUpdate,
   }
 })

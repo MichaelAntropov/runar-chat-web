@@ -42,7 +42,7 @@ const avatarLetter: ComputedRef<string> = computed(() => {
 const statusText: ComputedRef<string | null> = computed(() => {
   const now = reactiveNow.value
 
-  if (!presence.value) return null
+  if (!presence.value) return t('presence.last-seen-recently')
   if (presence.value.isOnline) return t('presence.online')
   if (presence.value.lastActiveAt) return formatRelativeTime(presence.value.lastActiveAt, now)
   return t('presence.last-seen-recently')

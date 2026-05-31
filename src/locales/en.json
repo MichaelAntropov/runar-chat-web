@@ -79,7 +79,8 @@
       "settings": "Settings",
       "devices": "Devices",
       "theme": "Theme",
-      "language": "Language"
+      "language": "Language",
+      "privacy-and-security": "Privacy and Security"
     }
   },
   "settings": {
@@ -94,6 +95,13 @@
     "theme": {
       "light": "Light",
       "dark": "Dark"
+    },
+    "privacy": {
+      "online-visibility": "Online visibility",
+      "everyone": "Everyone",
+      "everyone-desc": "Your online status is visible to your contacts",
+      "nobody": "Nobody",
+      "nobody-desc": "Your online status is hidden from everyone"
     },
     "devices": {
       "this-device": "This device:",

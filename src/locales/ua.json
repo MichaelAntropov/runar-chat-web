@@ -79,7 +79,8 @@
       "settings": "Налаштування",
       "devices": "Пристрої",
       "theme": "Тема",
-      "language": "Мова"
+      "language": "Мова",
+      "privacy-and-security": "Конфіденційність та Безпека"
     }
   },
   "settings": {
@@ -94,6 +95,13 @@
     "theme": {
       "light": "Світла",
       "dark": "Темна"
+    },
+    "privacy": {
+      "online-visibility": "Видимість в мережі",
+      "everyone": "Всі",
+      "everyone-desc": "Ваш статус видно контактам",
+      "nobody": "Ніхто",
+      "nobody-desc": "Ваш статус приховано від усіх"
     },
     "devices": {
       "this-device": "Цей пристрій:",

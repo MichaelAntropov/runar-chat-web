@@ -1,5 +1,5 @@
 export interface PresenceUpdate {
   userId: string
-  isOnline: boolean
+  isOnline: boolean | null
   lastActiveAt: string | null
 }

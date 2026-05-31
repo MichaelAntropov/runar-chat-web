@@ -22,7 +22,10 @@ const { t } = useI18n()
       <i class="bi bi-database fs-5 me-4"></i>{{ t('settings.menu.data-and-storage') }}
     </button>
 
-    <button class="btn menu-option text-start p-3 m-1 rounded-3">
+    <button
+      class="btn menu-option text-start p-3 m-1 rounded-3"
+      @click="emit('navigate', 'privacy-and-security')"
+    >
       <i class="bi bi-shield-lock fs-5 me-4"></i>{{ t('settings.menu.privacy-and-security') }}
     </button>
 
