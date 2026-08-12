@@ -74,6 +74,16 @@
       "theme": "Theme",
       "log-out": "Log Out"
     },
+    "search": {
+      "placeholder": "Search user...",
+      "back": "Return to chat list",
+      "results-label": "User search results",
+      "hint": "Enter at least {count} characters",
+      "searching": "Searching for users",
+      "error": "User search failed. Please try again.",
+      "retry": "Try again",
+      "no-results": "No users found"
+    },
     "panel-header": {
       "my-profile": "My Profile",
       "settings": "Settings",
