@@ -1,5 +1,14 @@
-import type { MessagePayload } from '../types/message/MessagePayload'
-import type { SendMessageResponse } from '../types/message/SendMessageResponse'
+import { isAxiosError } from 'axios'
+
+import { http } from '@/core/api/httpClient'
+import type { ApiErrorResponse } from '@/core/api/types/ApiErrorResponse'
+import { base64ToUint8Array } from '@/core/utils'
+
+import type { IdentityKey } from '../types/identity-key/IdentityKey'
+import type {
+  IdentityKeyResponse,
+  IdentityKeysResponse,
+} from '../types/identity-key/IdentityKeysResponse'
 import type {
   InitDeviceKeyBundle,
   InitDeviceKeyBundleResponse,
@@ -7,18 +16,12 @@ import type {
   InitKeyBundleResponse,
   MultiUserInitKeyBundleResponse,
 } from '../types/key-bundle/InitKeyBundleResponse'
+import type { MessagePayload } from '../types/message/MessagePayload'
+import { MessageReceiverBlockedError } from '../types/message/MessageReceiverBlockedError'
 import type { OfflineMessagesResponses } from '../types/message/MessagesResponse'
-import type {
-  IdentityKeyResponse,
-  IdentityKeysResponse,
-} from '../types/identity-key/IdentityKeysResponse'
-import { http } from '@/core/api/httpClient'
-import type { IdentityKey } from '../types/identity-key/IdentityKey'
-import { base64ToUint8Array } from '@/core/utils'
-import type { OfflineMessage } from '../types/message/OfflineMessage'
-import { isAxiosError } from 'axios'
-import type { ApiErrorResponse } from '@/core/api/types/ApiErrorResponse'
 import { MissingDevicesError } from '../types/message/MissingDevicesError'
+import type { OfflineMessage } from '../types/message/OfflineMessage'
+import type { SendMessageResponse } from '../types/message/SendMessageResponse'
 
 export const chatApi = {
   async getIdentityKeys(userId: string): Promise<IdentityKey[]> {
@@ -94,6 +97,14 @@ export const chatApi = {
           const data = missingDeviceError.data as Map<string, Array<string>> | undefined
           const deviceIds = data ?? new Map<string, Array<string>>()
           throw new MissingDevicesError(deviceIds)
+        }
+
+        const receiverBlockedError = errorResponse.errors.find(
+          (apiError) => apiError.code === 'MESSAGE_RECEIVER_BLOCKED',
+        )
+
+        if (receiverBlockedError) {
+          throw new MessageReceiverBlockedError()
         }
       }
 

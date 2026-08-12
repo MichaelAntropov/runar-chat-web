@@ -1,19 +1,32 @@
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+import { useBlockingStore } from '@/blocking/blockingStore'
+import { sendMessageInCurrentChat } from '@/chat/ChatService'
+import { MESSAGE_LOAD_STEP, useChatsStore } from '@/chat/chatStore'
+import { MessageReceiverBlockedError } from '@/chat/types/message/MessageReceiverBlockedError'
+import { useUserStore } from '@/user/userStore'
+
 import ChatHeader from './ChatHeader.vue'
 import MessageBubble from './MessageBubble.vue'
-import { MESSAGE_LOAD_STEP, useChatsStore } from '@/chat/chatStore'
-import { useUserStore } from '@/user/userStore'
-import { sendMessageInCurrentChat } from '@/chat/ChatService'
 
 defineProps<{ isMobile: boolean }>()
 const emit = defineEmits(['back'])
 
 const messageTextArea = useTemplateRef<HTMLTextAreaElement>('message-text-area')
 const messagesContainer = ref<HTMLElement>()
+const sendError = ref('')
 
+const { t } = useI18n()
+const blockingStore = useBlockingStore()
 const userStore = useUserStore()
 const chatStore = useChatsStore()
+
+const isCurrentRecipientBlocked = computed(() => {
+  const userId = chatStore.currentChat?.contact.userId
+  return userId ? blockingStore.isBlocked(userId) : false
+})
 
 const adjustMessageTextAreaHeight = () => {
   if (messageTextArea.value !== null) {
@@ -127,7 +140,7 @@ async function loadMessagesOnScroll() {
 }
 
 function handleEnterKeyPressed(event: KeyboardEvent) {
-  if (!messageTextArea.value) {
+  if (!messageTextArea.value || isCurrentRecipientBlocked.value) {
     return
   }
 
@@ -142,20 +155,41 @@ function handleEnterKeyPressed(event: KeyboardEvent) {
 }
 
 async function sendMessage() {
-  if (!chatStore.currentChat || !messageTextArea.value?.value || !userStore.principal) {
+  if (
+    !chatStore.currentChat ||
+    !messageTextArea.value?.value ||
+    !userStore.principal ||
+    isCurrentRecipientBlocked.value
+  ) {
     return
   }
 
-  await sendMessageInCurrentChat(messageTextArea.value?.value)
-  await chatStore.loadMessagesFromDB()
+  sendError.value = ''
 
-  messageTextArea.value.value = ''
-  adjustMessageTextAreaHeight()
+  try {
+    await sendMessageInCurrentChat(messageTextArea.value.value)
+    await chatStore.loadMessagesFromDB()
+
+    messageTextArea.value.value = ''
+    adjustMessageTextAreaHeight()
+  } catch (error) {
+    if (error instanceof MessageReceiverBlockedError) {
+      sendError.value = t('chat.blocking.send-blocked')
+      blockingStore.fetchBlockedUsers(true).catch((fetchError) => {
+        console.error('[ChatView] Failed to refresh blocked users:', fetchError)
+      })
+      return
+    }
+
+    console.error('[ChatView] Failed to send message:', error)
+    sendError.value = t('chat.send-error')
+  }
 }
 
 watch(
   () => chatStore.currentChat,
   async (newChat) => {
+    sendError.value = ''
     if (newChat) {
       console.log(`Load messages for ${newChat.id}`)
       await chatStore.loadMessagesFromDB()
@@ -236,18 +270,29 @@ onUnmounted(() => {
     </div>
 
     <div class="container pb-4 pt-2 mt-auto" style="max-width: 900px" v-if="chatStore.currentChat">
+      <div v-if="isCurrentRecipientBlocked" class="alert alert-warning py-2" role="alert">
+        {{ t('chat.blocking.send-blocked') }}
+      </div>
+      <div v-else-if="sendError" class="alert alert-danger py-2" role="alert">
+        {{ sendError }}
+      </div>
       <form class="d-flex w-100" role="send" @submit.prevent>
         <textarea
           ref="message-text-area"
           class="form-control me-2 flex-grow-1 custom-textarea"
-          placeholder="Type your message..."
+          :placeholder="t('chat.message-placeholder')"
           aria-label="Send"
           rows="1"
+          :disabled="isCurrentRecipientBlocked"
           @input="adjustMessageTextAreaHeight"
           @keypress.enter="handleEnterKeyPressed"
         ></textarea>
         <div class="mt-auto">
-          <button class="btn btn-primary" @click="sendMessage">
+          <button
+            class="btn btn-primary"
+            :disabled="isCurrentRecipientBlocked"
+            @click="sendMessage"
+          >
             <div style="rotate: 45deg" aria-label="Send">
               <i class="bi bi-send"></i>
             </div>

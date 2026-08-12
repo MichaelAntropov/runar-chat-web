@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import SettingsPanel from './settings/SettingsPanel.vue'
+
 import ChatsPanel from './ChatsPanel.vue'
 import MyProfilePanel from './MyProfilePanel.vue'
-import ThemeSettingsPanel from './settings/ThemeSettingsPanel.vue'
-import LanguageSettingsPanel from './settings/LanguageSettingsPanel.vue'
+import BlockedUsersPanel from './settings/BlockedUsersPanel.vue'
 import DevicesSettingsPanel from './settings/DevicesSettingsPanel.vue'
+import LanguageSettingsPanel from './settings/LanguageSettingsPanel.vue'
 import PrivacyAndSecurityPanel from './settings/PrivacyAndSecurityPanel.vue'
+import SettingsPanel from './settings/SettingsPanel.vue'
+import ThemeSettingsPanel from './settings/ThemeSettingsPanel.vue'
 
 const props = defineProps<{
   stack: string[]
@@ -32,6 +34,8 @@ const resolveComponent = (panel: string) => {
       return LanguageSettingsPanel
     case 'privacy-and-security':
       return PrivacyAndSecurityPanel
+    case 'blocked-users':
+      return BlockedUsersPanel
   }
 }
 </script>
@@ -40,7 +44,7 @@ const resolveComponent = (panel: string) => {
   <div class="h-100 overflow-hidden position-relative">
     <!-- Sliding track -->
     <div
-      class="d-flex"
+      class="d-flex h-100"
       :style="{
         transform: `translateX(-${activeIndex * 100}%)`,
         transition: 'transform 0.3s ease',
@@ -50,7 +54,7 @@ const resolveComponent = (panel: string) => {
         v-for="(panel, index) in stack"
         :key="index"
         :is="resolveComponent(panel)"
-        class="w-100 flex-shrink-0"
+        class="w-100 h-100 flex-shrink-0"
         @navigate="emit('navigate', $event)"
         @open-chat="emit('open-chat')"
       />

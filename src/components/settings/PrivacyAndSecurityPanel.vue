@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useSettingsStore } from '@/settings/settingsStore'
-import { usePresenceStore } from '@/presence/presenceStore'
+
+import { useBlockingStore } from '@/blocking/blockingStore'
 import { useContactsStore } from '@/contacts/contactStore'
+import { usePresenceStore } from '@/presence/presenceStore'
+import { useSettingsStore } from '@/settings/settingsStore'
 import type { OnlineVisibility } from '@/settings/types/OnlineVisibility'
 
 const { t } = useI18n()
+const emit = defineEmits<{ navigate: [panel: string] }>()
+const blockingStore = useBlockingStore()
 const settingsStore = useSettingsStore()
 const presenceStore = usePresenceStore()
 const contactsStore = useContactsStore()
@@ -97,6 +101,21 @@ async function onChange(value: OnlineVisibility) {
         </div>
       </label>
     </template>
+
+    <hr class="mx-3 my-2" />
+
+    <button
+      type="button"
+      class="btn privacy-option d-flex align-items-center text-start p-3 m-1 rounded-3"
+      @click="emit('navigate', 'blocked-users')"
+    >
+      <i class="bi bi-person-x fs-5 me-3" aria-hidden="true"></i>
+      <span class="flex-grow-1">{{ t('settings.blocking.blocked-users') }}</span>
+      <span v-if="blockingStore.isLoaded" class="text-body-secondary me-2">
+        {{ blockingStore.blockedUsers.length }}
+      </span>
+      <i class="bi bi-chevron-right text-body-secondary" aria-hidden="true"></i>
+    </button>
   </div>
 </template>
 

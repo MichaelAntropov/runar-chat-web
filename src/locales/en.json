@@ -80,7 +80,8 @@
       "devices": "Devices",
       "theme": "Theme",
       "language": "Language",
-      "privacy-and-security": "Privacy and Security"
+      "privacy-and-security": "Privacy and Security",
+      "blocked-users": "Blocked users"
     }
   },
   "settings": {
@@ -103,6 +104,29 @@
       "nobody": "Nobody",
       "nobody-desc": "Your online status is hidden from everyone"
     },
+    "blocking": {
+      "blocked-users": "Blocked users",
+      "search-label": "Block a user",
+      "search-placeholder": "Search by username",
+      "searching": "Searching",
+      "search-hint": "Enter at least {count} characters",
+      "search-error": "User search failed. Please try again.",
+      "no-search-results": "No users found",
+      "blocked": "Blocked",
+      "block": "Block",
+      "unblock": "Unblock",
+      "blocked-at": "Blocked {date}",
+      "loading": "Loading blocked users",
+      "load-error": "Blocked users could not be loaded.",
+      "retry": "Try again",
+      "no-blocked-users": "You have not blocked anyone",
+      "confirm-block-title": "Block user",
+      "confirm-block-message": "Block {username}? You will stop receiving their messages and will not be able to message them until you unblock them.",
+      "confirm-unblock-title": "Unblock user",
+      "confirm-unblock-message": "Unblock {username}? You will be able to exchange messages again.",
+      "update-error": "The change could not be saved. Please try again.",
+      "cancel": "Cancel"
+    },
     "devices": {
       "this-device": "This device:",
       "no-name": "Device name not provided",
@@ -111,6 +135,13 @@
       "not-found": "Not found",
       "other-devices": "Other devices:",
       "no-other": "No other devices"
+    }
+  },
+  "chat": {
+    "message-placeholder": "Type your message...",
+    "send-error": "The message could not be sent. Please try again.",
+    "blocking": {
+      "send-blocked": "You blocked this user. Unblock them in Privacy and Security to send messages."
     }
   },
   "presence": {
