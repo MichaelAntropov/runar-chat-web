@@ -124,12 +124,13 @@ export async function sendMessageInCurrentChat(content: string, retryCount = 0) 
       recipientId: chat.contact.userId,
       createdAt: Date.parse(response.createdAt),
       content: content,
+      readAt: null,
     }
 
     for (const chatState of existingChatStates) {
       await chatStateRepository.updateChatState(chatState)
     }
-    chatStore.addMessageToChat(chat, newStoredMessage)
+    await chatStore.addMessageToChat(chat, newStoredMessage)
   } catch (error) {
     if (error instanceof MissingDevicesError) {
       console.warn('sendMessageInCurrentChat() - Missing Devices:', error.deviceIds)
@@ -352,10 +353,11 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
       recipientId: userStore.principal.id,
       createdAt: Date.parse(msg.createdAt),
       content: textMessage.content,
+      readAt: null,
     }
 
     await chatStateRepository.updateChatState(chatState)
-    chatStore.addMessageToChat(chat, newStoredMessage)
+    await chatStore.addMessageToChat(chat, newStoredMessage)
   } else {
     console.warn(
       `decryptInboundMessageAndPushToChat() - Unknown message type: ${encodedMessage.type}`,

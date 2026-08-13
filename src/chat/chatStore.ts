@@ -140,18 +140,60 @@ export const useChatsStore = defineStore('chats', () => {
     console.log('Next messages loaded!')
   }
 
-  async function addMessageToChat(chat: Chat, message: StoredMessage) {
-    messageRepository
-      .saveMessage(message)
-      .then(() => {
-        console.log(`Message added id=${message.id} to chat with id=${chat.id}`)
-        if (chat.id === currentChat.value?.id && chat.autoScroll) {
-          currentChatMessages.value.push(message)
+  async function markChatAsRead(chat: Chat): Promise<string[]> {
+    const previousUnreadCount = chat.unreadCount
+    chat.unreadCount = 0
+
+    try {
+      const readAt = Date.now()
+      const readMessageIds = await messageRepository.markUnreadAsRead(
+        chat.id,
+        chat.contact.userId,
+        readAt,
+      )
+      const readMessageIdSet = new Set(readMessageIds)
+
+      for (const message of currentChatMessages.value) {
+        if (readMessageIdSet.has(message.id)) {
+          message.readAt = readAt
         }
-      })
-      .catch((error) => {
-        console.log(`Could not add message to chat: ${error}`)
-      })
+      }
+
+      return readMessageIds
+    } catch (error) {
+      chat.unreadCount = previousUnreadCount
+      console.error(`Could not mark chat id=${chat.id} as read:`, error)
+      return []
+    }
+  }
+
+  async function addMessageToChat(chat: Chat, message: StoredMessage): Promise<string[]> {
+    try {
+      await messageRepository.saveMessage(message)
+
+      chat.lastMessage = message.content
+      chat.lastMessageTime = message.createdAt
+
+      const isCurrentChat = chat.id === currentChat.value?.id
+      const isIncoming = message.senderId === chat.contact.userId
+
+      if (isCurrentChat && chat.autoScroll) {
+        currentChatMessages.value.push(message)
+      }
+
+      let readMessageIds: string[] = []
+      if (isIncoming && !isCurrentChat) {
+        chat.unreadCount++
+      } else if (isIncoming) {
+        readMessageIds = await markChatAsRead(chat)
+      }
+
+      console.log(`Message added id=${message.id} to chat with id=${chat.id}`)
+      return readMessageIds
+    } catch (error) {
+      console.log(`Could not add message to chat: ${error}`)
+      return []
+    }
   }
 
   function createNewChatFromContact(contact: Contact): Chat {
@@ -166,6 +208,7 @@ export const useChatsStore = defineStore('chats', () => {
       contact: contact,
       lastMessage: null,
       lastMessageTime: null,
+      unreadCount: 0,
       autoScroll: true,
       scrollPosition: null,
       messagesOffset: 0,
@@ -176,13 +219,15 @@ export const useChatsStore = defineStore('chats', () => {
     return newChat
   }
 
-  function changeCurrentChat(chatId: string) {
+  async function changeCurrentChat(chatId: string): Promise<string[]> {
     const chat = chats.value.find((chat) => chat.id === chatId)
     if (chat) {
       currentChatMessages.value = []
       currentChat.value = chat
+      return await markChatAsRead(chat)
     } else {
       console.error(`Error: Could not find chat: ${chatId}`)
+      return []
     }
   }
 
@@ -201,6 +246,14 @@ export const useChatsStore = defineStore('chats', () => {
 
         // Restore references (e.g. re-link contacts)
         for (const chat of restoredChats) {
+          const [latestMessage] = await messageRepository.getLatestByChatId(chat.id, 1)
+          chat.lastMessage = latestMessage?.content ?? null
+          chat.lastMessageTime = latestMessage?.createdAt ?? null
+          chat.unreadCount = await messageRepository.countUnreadByChatId(
+            chat.id,
+            chat.contact.userId,
+          )
+
           const contactUserId = chat.contact.userId
           const contactRef = contactsStore.contacts.find((c) => c.userId === contactUserId)
           if (contactRef) {
@@ -214,6 +267,9 @@ export const useChatsStore = defineStore('chats', () => {
           // Find the reactive object in the array to ensure its the same ref
           const activeChat = chats.value.find((c) => c.id === record.currentChat.id)
           currentChat.value = activeChat || null
+          if (currentChat.value) {
+            await markChatAsRead(currentChat.value)
+          }
 
           // Load messages immediately if a chat was open?
           // loadMessagesFromDB()
@@ -277,5 +333,6 @@ export const useChatsStore = defineStore('chats', () => {
     loadPreviousMessages,
     loadNextMessages,
     addMessageToChat,
+    markChatAsRead,
   }
 })

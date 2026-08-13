@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import type { Chat } from '@/chat/types/chat/Chat'
-import { useChatsStore } from '@/chat/chatStore'
-import { usePresenceStore } from '@/presence/presenceStore'
 import { computed, type ComputedRef } from 'vue'
+
+import { useChatsStore } from '@/chat/chatStore'
+import type { Chat } from '@/chat/types/chat/Chat'
+import { usePresenceStore } from '@/presence/presenceStore'
 
 const props = defineProps<{
   chat: Chat
@@ -17,6 +18,19 @@ const isSelected: ComputedRef<boolean> = computed(() => {
 
 const presence = computed(() => {
   return presenceStore.presenceMap.get(props.chat.contact.userId) ?? null
+})
+
+const lastMessageTime: ComputedRef<string> = computed(() => {
+  if (props.chat.lastMessageTime === null) return ''
+
+  const messageDate = new Date(props.chat.lastMessageTime)
+  const today = new Date()
+
+  if (messageDate.toDateString() === today.toDateString()) {
+    return messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  return messageDate.toLocaleDateString()
 })
 
 function changeCurrentChat(chatId: string) {
@@ -37,15 +51,12 @@ function changeCurrentChat(chatId: string) {
         v-bind:data-letters="props.chat.contact.username.charAt(0).toUpperCase()"
         class="m-0 me-1"
       ></p>
-      <span
-        v-if="presence?.isOnline"
-        class="presence-dot online"
-      ></span>
+      <span v-if="presence?.isOnline" class="presence-dot online"></span>
     </div>
     <div class="ms-1 d-flex flex-grow-1 flex-column text-truncate align-self-center">
       <div class="d-flex justify-content-between">
         <p class="fw-bold text-truncate m-0 mb-1 text-capitalize">{{ chat.contact.username }}</p>
-        <p class="small text-body-secondary m-0 mb-1 ms-2">{{ chat.lastMessageTime }}</p>
+        <p class="small text-body-secondary m-0 mb-1 ms-2">{{ lastMessageTime }}</p>
       </div>
       <div class="d-flex justify-content-between">
         <p v-if="chat.lastMessage" class="small text-truncate text-body-secondary m-0">
@@ -57,7 +68,12 @@ function changeCurrentChat(chatId: string) {
         >
           {{ 'Start conversation...' }}
         </p>
-        <!-- <p class="m-0 ms-2 badge text-bg-primary">{{ 25 }}</p> -->
+        <span
+          v-if="chat.unreadCount > 0"
+          class="badge rounded-pill text-bg-primary ms-2 align-self-center"
+        >
+          {{ chat.unreadCount }}
+        </span>
       </div>
     </div>
   </a>

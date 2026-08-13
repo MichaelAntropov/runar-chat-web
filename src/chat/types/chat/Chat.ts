@@ -4,7 +4,8 @@ export interface Chat {
   id: string
   contact: Contact
   lastMessage: string | null
-  lastMessageTime?: Date | null
+  lastMessageTime: number | null
+  unreadCount: number
 
   autoScroll: boolean
   scrollPosition: number | null

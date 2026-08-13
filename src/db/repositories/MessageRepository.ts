@@ -1,6 +1,8 @@
-import { MESSAGES_STORE } from '@/db/RunarDB'
-import type { StoredMessage } from '../../chat/types/chat/StoredMessage'
 import { Dexie } from 'dexie'
+
+import { MESSAGES_STORE } from '@/db/RunarDB'
+
+import type { StoredMessage } from '../../chat/types/chat/StoredMessage'
 import { useDbStore } from '../dbStore'
 
 export class MessageRepository {
@@ -36,6 +38,26 @@ export class MessageRepository {
 
   async countByChatId(chatId: string): Promise<number> {
     return this.db[MESSAGES_STORE].where('chatId').equals(chatId).count()
+  }
+
+  async countUnreadByChatId(chatId: string, senderId: string): Promise<number> {
+    return this.db[MESSAGES_STORE].where('chatId')
+      .equals(chatId)
+      .filter((message) => message.senderId === senderId && message.readAt === null)
+      .count()
+  }
+
+  async markUnreadAsRead(chatId: string, senderId: string, readAt: number): Promise<string[]> {
+    const unreadMessages = await this.db[MESSAGES_STORE].where('chatId')
+      .equals(chatId)
+      .filter((message) => message.senderId === senderId && message.readAt === null)
+      .toArray()
+
+    if (unreadMessages.length === 0) return []
+
+    await this.db[MESSAGES_STORE].bulkPut(unreadMessages.map((message) => ({ ...message, readAt })))
+
+    return unreadMessages.map((message) => message.id)
   }
 }
 

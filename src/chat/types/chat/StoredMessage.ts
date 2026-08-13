@@ -5,4 +5,5 @@ export interface StoredMessage {
   recipientId: string
   createdAt: number
   content: string
+  readAt: number | null
 }
