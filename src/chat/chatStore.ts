@@ -7,6 +7,7 @@ import { messageRepository } from '@/db/repositories/MessageRepository'
 import { useContactsStore } from '@/contacts/contactStore'
 import { useDbStore } from '@/db/dbStore'
 import { CHATS_STORE, CHATS_STORE_KEY } from '@/db/RunarDB'
+import { useUserStore } from '@/user/userStore'
 import { debounce } from 'lodash'
 
 export const MESSAGE_LOAD_COUNT = 15
@@ -21,6 +22,7 @@ interface PersistedChatState {
 export const useChatsStore = defineStore('chats', () => {
   const dbStore = useDbStore()
   const contactsStore = useContactsStore()
+  const userStore = useUserStore()
 
   const chats: Ref<Array<Chat>> = ref([])
   const currentChat: Ref<Chat | null> = ref(null)
@@ -183,13 +185,18 @@ export const useChatsStore = defineStore('chats', () => {
 
   async function addMessageToChat(chat: Chat, message: StoredMessage): Promise<string[]> {
     try {
+      const isSelfMessage = message.senderId === message.recipientId
+      if (isSelfMessage && message.readAt === null) {
+        message.readAt = message.createdAt
+      }
+
       await messageRepository.saveMessage(message)
 
       chat.lastMessage = message.content
       chat.lastMessageTime = message.createdAt
 
       const isCurrentChat = chat.id === currentChat.value?.id
-      const isIncoming = message.senderId === chat.contact.userId
+      const isIncoming = !isSelfMessage && message.senderId === chat.contact.userId
 
       if (isCurrentChat && chat.autoScroll) {
         currentChatMessages.value.push(message)
@@ -230,7 +237,7 @@ export const useChatsStore = defineStore('chats', () => {
     }
 
     chats.value.push(newChat)
-    return newChat
+    return chats.value[chats.value.length - 1]
   }
 
   function changeCurrentChat(chatId: string) {
@@ -268,10 +275,10 @@ export const useChatsStore = defineStore('chats', () => {
           const [latestMessage] = await messageRepository.getLatestByChatId(chat.id, 1)
           chat.lastMessage = latestMessage?.content ?? null
           chat.lastMessageTime = latestMessage?.createdAt ?? null
-          chat.unreadCount = await messageRepository.countUnreadByChatId(
-            chat.id,
-            chat.contact.userId,
-          )
+          chat.unreadCount =
+            chat.contact.userId === userStore.principal?.id
+              ? 0
+              : await messageRepository.countUnreadByChatId(chat.id, chat.contact.userId)
 
           const contactUserId = chat.contact.userId
           const contactRef = contactsStore.contacts.find((c) => c.userId === contactUserId)

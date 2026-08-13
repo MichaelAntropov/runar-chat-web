@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, type ComputedRef } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import { useChatsStore } from '@/chat/chatStore'
 import type { Chat } from '@/chat/types/chat/Chat'
 import { usePresenceStore } from '@/presence/presenceStore'
+import { useUserStore } from '@/user/userStore'
 
 const props = defineProps<{
   chat: Chat
@@ -11,6 +13,10 @@ const props = defineProps<{
 
 const chatStore = useChatsStore()
 const presenceStore = usePresenceStore()
+const userStore = useUserStore()
+const { t } = useI18n()
+
+const isSavedMessages = computed(() => props.chat.contact.userId === userStore.principal?.id)
 
 const isSelected: ComputedRef<boolean> = computed(() => {
   return chatStore.currentChat?.id === props.chat.id
@@ -47,15 +53,21 @@ function changeCurrentChat(chatId: string) {
     @click="changeCurrentChat(chat.id)"
   >
     <div class="flex-shrink-0 position-relative">
+      <span v-if="isSavedMessages" class="saved-messages-avatar m-0 me-1">
+        <i class="bi bi-save2" aria-hidden="true"></i>
+      </span>
       <p
+        v-else
         v-bind:data-letters="props.chat.contact.username.charAt(0).toUpperCase()"
         class="m-0 me-1"
       ></p>
-      <span v-if="presence?.isOnline" class="presence-dot online"></span>
+      <span v-if="!isSavedMessages && presence?.isOnline" class="presence-dot online"></span>
     </div>
     <div class="ms-1 d-flex flex-grow-1 flex-column text-truncate align-self-center">
       <div class="d-flex justify-content-between">
-        <p class="fw-bold text-truncate m-0 mb-1 text-capitalize">{{ chat.contact.username }}</p>
+        <p class="fw-bold text-truncate m-0 mb-1" :class="{ 'text-capitalize': !isSavedMessages }">
+          {{ isSavedMessages ? t('sidebar.menu.saved-messages') : chat.contact.username }}
+        </p>
         <p class="small text-body-secondary m-0 mb-1 ms-2">{{ lastMessageTime }}</p>
       </div>
       <div class="d-flex justify-content-between">
@@ -108,5 +120,17 @@ function changeCurrentChat(chatId: string) {
   vertical-align: middle;
   margin-right: 0;
   color: white;
+}
+
+.saved-messages-avatar {
+  display: inline-flex;
+  width: 3.5rem;
+  height: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.65rem;
+  background: plum;
+  border-radius: 50%;
 }
 </style>

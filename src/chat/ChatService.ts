@@ -1,6 +1,7 @@
 import { useChatsStore } from './chatStore'
 import { useDeviceStore } from '../device/deviceStore'
 import type { InitDeviceKeyBundle, InitKeyBundle } from './types/key-bundle/InitKeyBundleResponse'
+import { sessionsApi } from '@/auth/api/sessionsApi'
 import { useUserStore } from '@/user/userStore'
 import type { Chat } from '@/chat/types/chat/Chat'
 import type { DeviceMessagePayload, MessagePayload } from './types/message/MessagePayload'
@@ -12,7 +13,7 @@ import { useContactsStore } from '@/contacts/contactStore'
 import type { InboundMessage } from './types/message/InboundMessage'
 import type { ChatState } from './types/chat/ChatState'
 import type { RatchetEncryptResult } from './crypto/types/RatchetEncryptResult'
-import { uint8ArrayToBase64 } from '@/core/utils'
+import { parseUtcTimestamp, uint8ArrayToBase64 } from '@/core/utils'
 import {
   establishSecretKeyWithSender,
   generateSecretKeyForKeyBundle,
@@ -35,6 +36,31 @@ import { MissingDevicesError } from './types/message/MissingDevicesError'
 import type { GeneratedSecretKeyBundle } from './crypto/types/GeneratedSecretKeyBundle'
 import type { EncodedMessage } from './types/chat/Message'
 import type { TextMessage } from './types/chat/TextMessage'
+
+function getOrCreateSavedMessagesChat(): Chat | null {
+  const userStore = useUserStore()
+  const chatStore = useChatsStore()
+
+  if (!userStore.principal) {
+    console.error('getOrCreateSavedMessagesChat() - No authenticated principal.')
+    return null
+  }
+
+  const contact = {
+    userId: userStore.principal.id,
+    username: userStore.principal.name,
+  }
+  return chatStore.createNewChatFromContact(contact)
+}
+
+export function openSavedMessagesChat(): Chat | null {
+  const chatStore = useChatsStore()
+  const chat = getOrCreateSavedMessagesChat()
+  if (!chat) return null
+
+  chatStore.changeCurrentChat(chat.id)
+  return chat
+}
 
 /**
  * Encrypts and sends a message to the user in the currently selected chat.
@@ -64,6 +90,21 @@ export async function sendMessageInCurrentChat(content: string, retryCount = 0) 
     console.log('sendMessageInCurrentChat() - No existing chat states. Establishing new session...')
     await establishChatStateForChat(chat)
     existingChatStates = await getEstablishedChatStatesForChat(chat)
+  }
+
+  if (chat.contact.userId === userStore.principal.id && existingChatStates.length === 0) {
+    const createdAt = Date.now()
+    const localMessage: StoredMessage = {
+      id: crypto.randomUUID(),
+      chatId: chat.id,
+      senderId: userStore.principal.id,
+      recipientId: userStore.principal.id,
+      createdAt,
+      content,
+      readAt: createdAt,
+    }
+    await chatStore.addMessageToChat(chat, localMessage)
+    return
   }
 
   console.log('sendMessageInCurrentChat() - Chat states fetched!')
@@ -122,7 +163,7 @@ export async function sendMessageInCurrentChat(content: string, retryCount = 0) 
       chatId: chat.id,
       senderId: userStore.principal.id,
       recipientId: chat.contact.userId,
-      createdAt: Date.parse(response.createdAt),
+      createdAt: parseUtcTimestamp(response.createdAt),
       content: content,
       readAt: null,
     }
@@ -186,7 +227,9 @@ export async function fetchAndDecryptOfflineMessages() {
   console.log('fetchAndDecryptOfflineMessages() - Fetching and decrypting offline messages...')
 
   const offlineMessages = await chatApi.postReceiveOfflineMessages()
-  offlineMessages.sort((msgA, msgB) => Date.parse(msgA.createdAt) - Date.parse(msgB.createdAt))
+  offlineMessages.sort(
+    (msgA, msgB) => parseUtcTimestamp(msgA.createdAt) - parseUtcTimestamp(msgB.createdAt),
+  )
 
   for (const msg of offlineMessages) {
     console.log(`decryptInboundMessageAndPushToChat() - ${JSON.stringify(msg)}`)
@@ -208,14 +251,16 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
     return
   }
 
-  try {
-    await getExistingOrCreateNewChat(msg.senderId)
-  } catch (error) {
-    console.error(
-      `decryptInboundMessageAndPushToChat() - Failed to get/create chat for userId=${msg.senderId}:`,
-      error,
-    )
-    return
+  if (msg.senderId !== userStore.principal.id) {
+    try {
+      await getExistingOrCreateNewChat(msg.senderId)
+    } catch (error) {
+      console.error(
+        `decryptInboundMessageAndPushToChat() - Failed to get/create chat for userId=${msg.senderId}:`,
+        error,
+      )
+      return
+    }
   }
 
   let chatState: ChatState | undefined = await getEstablishedChatStateForDeviceId(
@@ -345,15 +390,19 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
     }
 
     const textMessage: TextMessage = encodedMessage as TextMessage
+    const createdAt = parseUtcTimestamp(msg.createdAt)
 
     const newStoredMessage: StoredMessage = {
       id: msg.messageId,
       chatId: chat.id,
       senderId: msg.senderId,
-      recipientId: userStore.principal.id,
-      createdAt: Date.parse(msg.createdAt),
+      recipientId:
+        msg.senderId === userStore.principal.id
+          ? actualChatUserId
+          : userStore.principal.id,
+      createdAt,
       content: textMessage.content,
-      readAt: null,
+      readAt: actualChatUserId === userStore.principal.id ? createdAt : null,
     }
 
     await chatStateRepository.updateChatState(chatState)
@@ -376,10 +425,7 @@ async function getExistingOrCreateNewChat(userId: string): Promise<Chat | null> 
   }
 
   if (userId === userStore.principal.id) {
-    console.log(
-      `getExistingOrCreateNewChat() - Message is from another device of the principal. Ignoring.`,
-    )
-    return null
+    return getOrCreateSavedMessagesChat()
   }
 
   const existingContact = contactStore.contacts.find((v) => v.userId === userId)
@@ -432,6 +478,7 @@ async function getEstablishedChatStateForDeviceId(
 
 async function getEstablishedChatStatesForChat(chat: Chat): Promise<ChatState[]> {
   console.log('Get existing chat states...')
+  const deviceStore = useDeviceStore()
   const userStore = useUserStore()
   const chatStatesWithContact: ChatState[] = await chatStateRepository.getAllChatStatesByUserId(
     chat.contact.userId,
@@ -439,13 +486,37 @@ async function getEstablishedChatStatesForChat(chat: Chat): Promise<ChatState[]>
   const chatStatesWithOtherPrincipleDevices: ChatState[] =
     await chatStateRepository.getAllChatStatesByUserId(userStore.principal!.id)
 
-  return chatStatesWithContact.concat(chatStatesWithOtherPrincipleDevices)
+  const statesByDeviceId = new Map<string, ChatState>()
+  for (const chatState of chatStatesWithContact.concat(chatStatesWithOtherPrincipleDevices)) {
+    if (chatState.deviceId !== deviceStore.deviceId) {
+      statesByDeviceId.set(chatState.deviceId, chatState)
+    }
+  }
+
+  return [...statesByDeviceId.values()]
 }
 
 async function establishChatStateForChat(chat: Chat) {
   const deviceStore = useDeviceStore()
+  const userStore = useUserStore()
   console.log(`Fetching key bundles for ${chat.contact.username}...`)
-  const keyBundles: InitKeyBundle = await chatApi.getKeyBundle(chat.contact.userId)
+  let keyBundles: InitKeyBundle
+
+  if (chat.contact.userId === userStore.principal?.id) {
+    const sessions = await sessionsApi.getDeviceSessions()
+    const otherDeviceIds = sessions.deviceSessions
+      .map((session) => session.deviceId)
+      .filter((deviceId) => deviceId !== deviceStore.deviceId)
+
+    if (otherDeviceIds.length === 0) return
+
+    const bundlesByUser = await chatApi.getKeyBundles({
+      [chat.contact.userId]: otherDeviceIds,
+    })
+    keyBundles = { keyBundles: bundlesByUser.get(chat.contact.userId) ?? [] }
+  } else {
+    keyBundles = await chatApi.getKeyBundle(chat.contact.userId)
+  }
 
   const verifications: boolean[] = await Promise.all(
     keyBundles.keyBundles.map((bundle) => {

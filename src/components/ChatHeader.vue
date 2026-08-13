@@ -5,12 +5,14 @@ import { useChatsStore } from '@/chat/chatStore'
 import { usePresenceStore } from '@/presence/presenceStore'
 import type { PresenceUpdate } from '@/presence/types/PresenceUpdate'
 import type { Chat } from '@/chat/types/chat/Chat'
+import { useUserStore } from '@/user/userStore'
 
 defineProps<{ isMobile: boolean }>()
 const emit = defineEmits<{ back: [] }>()
 
 const chatStore = useChatsStore()
 const presenceStore = usePresenceStore()
+const userStore = useUserStore()
 const { t } = useI18n()
 
 const reactiveNow: Ref<number> = ref(Date.now())
@@ -28,6 +30,9 @@ onUnmounted(() => {
 let statusRefreshTimer: number
 
 const currentChat: ComputedRef<Chat | null> = computed(() => chatStore.currentChat)
+const isSavedMessages = computed(
+  () => currentChat.value?.contact.userId === userStore.principal?.id,
+)
 
 const presence: ComputedRef<PresenceUpdate | null> = computed(() => {
   const chat = currentChat.value
@@ -40,6 +45,8 @@ const avatarLetter: ComputedRef<string> = computed(() => {
 })
 
 const statusText: ComputedRef<string | null> = computed(() => {
+  if (isSavedMessages.value) return null
+
   const now = reactiveNow.value
 
   if (!presence.value) return t('presence.last-seen-recently')
@@ -62,7 +69,10 @@ function formatRelativeTime(isoString: string, now: number): string {
 </script>
 
 <template>
-  <div v-if="currentChat" class="px-3 py-2 border-bottom d-flex align-items-center gap-2">
+  <div
+    v-if="currentChat"
+    class="chat-header px-3 py-2 border-bottom d-flex align-items-center gap-2"
+  >
     <button
       v-if="isMobile"
       class="btn link-body-emphasis me-2 btn-back"
@@ -72,9 +82,14 @@ function formatRelativeTime(isoString: string, now: number): string {
     >
       <i class="bi bi-arrow-left btn-back__icon" aria-hidden="true"></i>
     </button>
-    <p :data-letters="avatarLetter" class="m-0 contact-avatar flex-shrink-0"></p>
+    <span v-if="isSavedMessages" class="saved-messages-avatar flex-shrink-0">
+      <i class="bi bi-save2" aria-hidden="true"></i>
+    </span>
+    <p v-else :data-letters="avatarLetter" class="m-0 contact-avatar flex-shrink-0"></p>
     <div class="overflow-hidden">
-      <p class="fw-bold text-truncate m-0">{{ currentChat?.contact.username }}</p>
+      <p class="fw-bold text-truncate m-0">
+        {{ isSavedMessages ? t('sidebar.menu.saved-messages') : currentChat?.contact.username }}
+      </p>
       <p v-if="statusText" class="small text-body-secondary text-truncate m-0">
         {{ statusText }}
       </p>
@@ -83,6 +98,10 @@ function formatRelativeTime(isoString: string, now: number): string {
 </template>
 
 <style scoped>
+.chat-header {
+  min-height: 62px;
+}
+
 .btn-back {
   padding: 0.375rem 0.5rem;
   line-height: 1;
@@ -111,5 +130,17 @@ function formatRelativeTime(isoString: string, now: number): string {
   vertical-align: middle;
   margin-right: 0;
   color: white;
+}
+
+.saved-messages-avatar {
+  display: inline-flex;
+  width: 2.5rem;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.25rem;
+  background: plum;
+  border-radius: 50%;
 }
 </style>

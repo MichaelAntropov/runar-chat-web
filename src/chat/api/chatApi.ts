@@ -55,7 +55,7 @@ export const chatApi = {
   },
 
   async getKeyBundles(
-    userIdsAndDeviceIds: Map<string, Array<string>>,
+    userIdsAndDeviceIds: Record<string, string[]>,
   ): Promise<Map<string, Array<InitDeviceKeyBundle>>> {
     const result = await http.post<MultiUserInitKeyBundleResponse>(`/api/v1/keys/key-bundles`, {
       deviceIds: userIdsAndDeviceIds,
@@ -94,8 +94,7 @@ export const chatApi = {
         const missingDeviceError = errorResponse.errors.find((e) => e.code === 'MISSING_DEVICES')
 
         if (missingDeviceError) {
-          const data = missingDeviceError.data as Map<string, Array<string>> | undefined
-          const deviceIds = data ?? new Map<string, Array<string>>()
+          const deviceIds = (missingDeviceError.data ?? {}) as Record<string, string[]>
           throw new MissingDevicesError(deviceIds)
         }
 

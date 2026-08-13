@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { openSavedMessagesChat } from '@/chat/ChatService'
 import { useUserStore } from '@/user/userStore'
 
 import ChatList from './ChatList.vue'
@@ -15,6 +16,12 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const userStore = useUserStore()
 const searchActive = ref(false)
+
+function openSavedMessages() {
+  if (openSavedMessagesChat()) {
+    emit('open-chat')
+  }
+}
 </script>
 
 <template>
@@ -45,7 +52,7 @@ const searchActive = ref(false)
           </button>
         </li>
         <li>
-          <button class="dropdown-item">
+          <button class="dropdown-item" @click="openSavedMessages">
             <i class="bi bi-save2 me-2"></i>{{ t('sidebar.menu.saved-messages') }}
           </button>
         </li>

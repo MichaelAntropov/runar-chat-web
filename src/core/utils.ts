@@ -14,3 +14,8 @@ export function uint8ArrayToBase64(uint8Array: Uint8Array<ArrayBuffer>): string 
   }
   return btoa(binaryString)
 }
+
+export function parseUtcTimestamp(timestamp: string): number {
+  const hasTimeZone = /(?:z|[+-]\d{2}:?\d{2})$/i.test(timestamp)
+  return Date.parse(hasTimeZone ? timestamp : `${timestamp}Z`)
+}
