@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import type { Ref } from 'vue'
-import ChatView from './ChatView.vue'
-import LoadingOverlay from './LoadingOverlay.vue'
-import { useDeviceStore } from '@/device/deviceStore'
+import { computed, onMounted, onUnmounted, ref, watch, type Ref } from 'vue'
+
+import { useChatsStore } from '@/chat/chatStore'
 import { useConnectionStore } from '@/connection/connectionStore'
 import { useDbStore } from '@/db/dbStore'
+import { useDeviceStore } from '@/device/deviceStore'
 import { usePresenceStore } from '@/presence/presenceStore'
+
+import ChatView from './ChatView.vue'
 import DbEncryptionModal from './DbEncryptionModal.vue'
+import LoadingOverlay from './LoadingOverlay.vue'
 import SideBar from './SideBar.vue'
 
+const chatStore = useChatsStore()
 const deviceStore = useDeviceStore()
 const dbStore = useDbStore()
 useConnectionStore()
@@ -22,11 +25,32 @@ onMounted(() => {
   dbStore.init()
 })
 
+onUnmounted(() => {
+  window.removeEventListener('resize', checkScreen)
+  stopResize()
+  chatStore.closeCurrentChat()
+})
+
 const isMobile = ref(false)
 const activeMobileView = ref<'sidebar' | 'chat'>('sidebar')
 
 const checkScreen = () => {
-  isMobile.value = window.innerWidth < 768
+  const nextIsMobile = window.innerWidth < 768
+
+  if (nextIsMobile && !isMobile.value) {
+    activeMobileView.value = chatStore.currentChat ? 'chat' : 'sidebar'
+  }
+
+  isMobile.value = nextIsMobile
+}
+
+function openChat() {
+  activeMobileView.value = 'chat'
+}
+
+function backToSidebar() {
+  activeMobileView.value = 'sidebar'
+  chatStore.closeCurrentChat()
 }
 
 const sidebarWidth: Ref<number> = ref(460)
@@ -60,6 +84,15 @@ const showChat = computed(() => (isMobile.value ? activeMobileView.value === 'ch
 const transitionName = computed(() =>
   activeMobileView.value === 'chat' ? 'slide-left' : 'slide-right',
 )
+
+watch(
+  () => chatStore.currentChat,
+  (chat) => {
+    if (isMobile.value && chat) {
+      activeMobileView.value = 'chat'
+    }
+  },
+)
 </script>
 
 <template>
@@ -76,8 +109,8 @@ const transitionName = computed(() =>
           <component
             :is="activeMobileView === 'sidebar' ? SideBar : ChatView"
             :isMobile="true"
-            @open-chat="activeMobileView = 'chat'"
-            @back="activeMobileView = 'sidebar'"
+            @open-chat="openChat"
+            @back="backToSidebar"
           />
         </div>
       </Transition>
@@ -88,12 +121,12 @@ const transitionName = computed(() =>
         class="border-end position-relative"
         :style="!isMobile ? { width: sidebarWidth + 'px' } : { width: '100%' }"
       >
-        <SideBar @open-chat="activeMobileView = 'chat'" />
+        <SideBar @open-chat="openChat" />
         <!-- Resize handle (desktop only) -->
         <div v-if="!isMobile" class="resizer" @mousedown.prevent="startResize"></div>
       </div>
       <div v-if="showChat" class="flex-grow-1">
-        <ChatView :isMobile="isMobile" @back="activeMobileView = 'sidebar'" />
+        <ChatView :isMobile="isMobile" @back="backToSidebar" />
       </div>
     </div>
   </div>

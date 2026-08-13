@@ -12,6 +12,12 @@ import { debounce } from 'lodash'
 export const MESSAGE_LOAD_COUNT = 15
 export const MESSAGE_LOAD_STEP = 5
 
+interface PersistedChatState {
+  chats?: Chat[]
+  currentChatId?: string | null
+  currentChat?: { id: string } | null
+}
+
 export const useChatsStore = defineStore('chats', () => {
   const dbStore = useDbStore()
   const contactsStore = useContactsStore()
@@ -35,10 +41,12 @@ export const useChatsStore = defineStore('chats', () => {
         chat.id,
         size,
       )
+      const totalMsgCount: number = await messageRepository.countByChatId(chat.id)
+
+      if (currentChat.value?.id !== chat.id) return
 
       currentChatMessages.value = storedMessages.reverse()
 
-      const totalMsgCount: number = await messageRepository.countByChatId(chat.id)
       if (totalMsgCount > MESSAGE_LOAD_COUNT + 2 * MESSAGE_LOAD_STEP) {
         chat.messagesOffset = -1
       }
@@ -50,6 +58,8 @@ export const useChatsStore = defineStore('chats', () => {
         chat.messagesOffset,
         sizeToLoad,
       )
+
+      if (currentChat.value?.id !== chat.id) return
 
       currentChatMessages.value = storedMessages
     }
@@ -91,6 +101,8 @@ export const useChatsStore = defineStore('chats', () => {
       sizeToLoad,
     )
 
+    if (currentChat.value?.id !== chat.id) return
+
     chat.loadLatest = false
     chat.messagesOffset = offset
     currentChatMessages.value = storedMessages
@@ -127,6 +139,8 @@ export const useChatsStore = defineStore('chats', () => {
       offset,
       sizeToLoad,
     )
+
+    if (currentChat.value?.id !== chat.id) return
 
     chat.messagesOffset = offset
     currentChatMessages.value = storedMessages
@@ -219,16 +233,19 @@ export const useChatsStore = defineStore('chats', () => {
     return newChat
   }
 
-  async function changeCurrentChat(chatId: string): Promise<string[]> {
+  function changeCurrentChat(chatId: string) {
     const chat = chats.value.find((chat) => chat.id === chatId)
     if (chat) {
       currentChatMessages.value = []
       currentChat.value = chat
-      return await markChatAsRead(chat)
     } else {
       console.error(`Error: Could not find chat: ${chatId}`)
-      return []
     }
+  }
+
+  function closeCurrentChat() {
+    currentChatMessages.value = []
+    currentChat.value = null
   }
 
   const isHydrated = ref(false)
@@ -239,10 +256,12 @@ export const useChatsStore = defineStore('chats', () => {
     try {
       console.log('[chatStore] Hydrating from DB...')
 
-      const record = await dbStore.db.table(CHATS_STORE).get(CHATS_STORE_KEY)
+      const record = (await dbStore.db.table(CHATS_STORE).get(CHATS_STORE_KEY)) as
+        | PersistedChatState
+        | undefined
 
       if (record) {
-        const restoredChats: Chat[] = record.chats || []
+        const restoredChats: Chat[] = record.chats ?? []
 
         // Restore references (e.g. re-link contacts)
         for (const chat of restoredChats) {
@@ -263,17 +282,11 @@ export const useChatsStore = defineStore('chats', () => {
 
         chats.value = restoredChats
 
-        if (record.currentChat) {
-          // Find the reactive object in the array to ensure its the same ref
-          const activeChat = chats.value.find((c) => c.id === record.currentChat.id)
-          currentChat.value = activeChat || null
-          if (currentChat.value) {
-            await markChatAsRead(currentChat.value)
-          }
+        const persistedCurrentChatId = Object.prototype.hasOwnProperty.call(record, 'currentChatId')
+          ? record.currentChatId
+          : record.currentChat?.id
 
-          // Load messages immediately if a chat was open?
-          // loadMessagesFromDB()
-        }
+        currentChat.value = chats.value.find((chat) => chat.id === persistedCurrentChatId) ?? null
       }
     } catch (e) {
       console.error('[chatStore] Hydration failed:', e)
@@ -288,7 +301,7 @@ export const useChatsStore = defineStore('chats', () => {
     try {
       const stateToSave = {
         chats: JSON.parse(JSON.stringify(chats.value)),
-        currentChat: currentChat.value ? JSON.parse(JSON.stringify(currentChat.value)) : null,
+        currentChatId: currentChat.value?.id ?? null,
       }
 
       await dbStore.db.table(CHATS_STORE).put(stateToSave, CHATS_STORE_KEY)
@@ -307,7 +320,7 @@ export const useChatsStore = defineStore('chats', () => {
         // If DB locks or resets, mark as not hydrated to stop saving
         isHydrated.value = false
         chats.value = []
-        currentChat.value = null
+        closeCurrentChat()
       }
     },
     { immediate: true },
@@ -329,6 +342,7 @@ export const useChatsStore = defineStore('chats', () => {
     currentChatMessages,
     createNewChatFromContact,
     changeCurrentChat,
+    closeCurrentChat,
     loadMessagesFromDB,
     loadPreviousMessages,
     loadNextMessages,

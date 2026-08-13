@@ -192,6 +192,7 @@ watch(
     sendError.value = ''
     if (newChat) {
       console.log(`Load messages for ${newChat.id}`)
+      await chatStore.markChatAsRead(newChat)
       await chatStore.loadMessagesFromDB()
       await nextTick()
 
@@ -238,13 +239,11 @@ watch(
   { deep: true, immediate: true }, // deep watches array changes
 )
 
-onMounted(async () => {
+onMounted(() => {
   if (messagesContainer.value) {
     messagesContainer.value.addEventListener('scroll', handleScrollChange)
     messagesContainer.value.addEventListener('scroll', loadMessagesOnScroll)
   }
-
-  chatStore.loadMessagesFromDB()
 })
 
 onUnmounted(() => {
