@@ -5,6 +5,8 @@ import type { StoredMessage } from '@/chat/types/chat/StoredMessage'
 import { useUserStore } from '@/user/userStore'
 
 interface Props {
+  isFirstInSenderGroup: boolean
+  isLastInSenderGroup: boolean
   message: StoredMessage
 }
 const props = defineProps<Props>()
@@ -31,7 +33,17 @@ const formatDateFromTimestamp = (timestamp: number | undefined): string => {
 </script>
 
 <template>
-  <div class="d-flex flex-column bubble m-2" :class="msgBubbleSideClass" :id="message.id">
+  <div
+    class="d-flex flex-column bubble mx-2"
+    :class="[
+      msgBubbleSideClass,
+      {
+        'sender-group-start': isFirstInSenderGroup,
+        'sender-group-end': isLastInSenderGroup,
+      },
+    ]"
+    :id="message.id"
+  >
     <p class="m-0 message-text-content text-body-emphasis">
       {{ props.message.content }}
     </p>
@@ -51,34 +63,57 @@ const formatDateFromTimestamp = (timestamp: number | undefined): string => {
 .bubble {
   --r: 1em; /* the radius */
   --t: 1.5em; /* the size of the tail */
+  --group-r: 0.35em;
 
   max-width: 60%;
   padding: 1em;
+  border-radius: var(--r);
+  margin-bottom: 6px;
+}
+.bubble.sender-group-end {
   border-inline: var(--t) solid #0000;
   border-radius: calc(var(--r) + var(--t)) / var(--r);
+  margin-bottom: 10px;
   mask:
     radial-gradient(100% 100% at var(--_p) 0, #0000 99%, #000 102%) var(--_p) 100% / var(--t)
       var(--t) no-repeat,
     linear-gradient(#000 0 0) padding-box;
-  /* color: #fff; */
 }
 .left {
   --_p: 0;
-  border-bottom-left-radius: 0 0;
   place-self: start;
   background-color: var(--bs-secondary-bg);
 }
+.left:not(.sender-group-start):not(.sender-group-end) {
+  border-top-left-radius: var(--group-r);
+}
+.left.sender-group-end:not(.sender-group-start) {
+  border-top-left-radius: calc(var(--t) + var(--group-r)) var(--group-r);
+}
+.left:not(.sender-group-end) {
+  border-bottom-left-radius: var(--group-r);
+  margin-left: calc(var(--t) + 0.5rem) !important;
+}
+.left.sender-group-end {
+  border-bottom-left-radius: 0 0;
+}
 .right {
   --_p: 100%;
-  border-bottom-right-radius: 0 0;
   place-self: end;
-  /* background-color: var(--bs-primary); */
-  background: linear-gradient(
-      135deg,
-      var(--bs-primary-border-subtle),
-      var(--bs-primary-border-subtle)
-    )
-    border-box;
+  background-color: var(--bs-primary-border-subtle);
+}
+.right:not(.sender-group-start):not(.sender-group-end) {
+  border-top-right-radius: var(--group-r);
+}
+.right.sender-group-end:not(.sender-group-start) {
+  border-top-right-radius: calc(var(--t) + var(--group-r)) var(--group-r);
+}
+.right:not(.sender-group-end) {
+  border-bottom-right-radius: var(--group-r);
+  margin-right: calc(var(--t) + 0.5rem) !important;
+}
+.right.sender-group-end {
+  border-bottom-right-radius: 0 0;
 }
 .message-text-content {
   white-space: pre-wrap;

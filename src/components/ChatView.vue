@@ -154,6 +154,20 @@ function handleEnterKeyPressed(event: KeyboardEvent) {
   }
 }
 
+function isLastMessageInSenderGroup(index: number): boolean {
+  const messages = chatStore.currentChatMessages
+  const nextMessage = messages[index + 1]
+
+  return !nextMessage || messages[index].senderId !== nextMessage.senderId
+}
+
+function isFirstMessageInSenderGroup(index: number): boolean {
+  const messages = chatStore.currentChatMessages
+  const previousMessage = messages[index - 1]
+
+  return !previousMessage || messages[index].senderId !== previousMessage.senderId
+}
+
 async function sendMessage() {
   if (
     !chatStore.currentChat ||
@@ -261,8 +275,12 @@ onUnmounted(() => {
     <div class="container-fluid overflow-y-auto" ref="messagesContainer">
       <div class="container p-2 mb-auto h-100" style="max-width: 900px">
         <div class="d-flex flex-column align-items-end">
-          <template v-for="msg in chatStore.currentChatMessages" :key="msg.id">
-            <MessageBubble :message="msg" />
+          <template v-for="(msg, index) in chatStore.currentChatMessages" :key="msg.id">
+            <MessageBubble
+              :is-first-in-sender-group="isFirstMessageInSenderGroup(index)"
+              :is-last-in-sender-group="isLastMessageInSenderGroup(index)"
+              :message="msg"
+            />
           </template>
         </div>
       </div>
