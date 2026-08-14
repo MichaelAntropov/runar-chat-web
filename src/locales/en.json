@@ -152,6 +152,10 @@
   "chat": {
     "message-placeholder": "Type your message...",
     "send-error": "The message could not be sent. Please try again.",
+    "date": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
     "blocking": {
       "send-blocked": "You blocked this user. Unblock them in Privacy and Security to send messages."
     }
