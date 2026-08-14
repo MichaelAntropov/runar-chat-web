@@ -1,18 +1,21 @@
+import { defineStore } from 'pinia'
+import { ref, watch, type Ref } from 'vue'
+
+import {
+  decryptInboundMessageAndPushToChat,
+  fetchAndDecryptOfflineMessages,
+  flushPendingReadReceipts,
+} from '@/chat/ChatService'
 import {
   inboundMessageFromWebsocketMessage,
   type InboundMessage,
 } from '@/chat/types/message/InboundMessage'
-import { useDeviceStore, type DeviceRegistrationStatus } from '@/device/deviceStore'
-import { useUserStore } from '@/user/userStore'
-import { defineStore } from 'pinia'
-import { ref, watch, type Ref } from 'vue'
-import { WebsocketConnection, type WebSocketConnectionStatus } from './WebsocketConnection'
-import {
-  decryptInboundMessageAndPushToChat,
-  fetchAndDecryptOfflineMessages,
-} from '@/chat/ChatService'
 import { useDbStore, type DbStatus } from '@/db/dbStore'
+import { useDeviceStore, type DeviceRegistrationStatus } from '@/device/deviceStore'
 import { usePresenceStore } from '@/presence/presenceStore'
+import { useUserStore } from '@/user/userStore'
+
+import { WebsocketConnection, type WebSocketConnectionStatus } from './WebsocketConnection'
 import type { MessageWsMessage, PresenceWsMessage } from './wsEventTypes'
 
 export const useConnectionStore = defineStore('connection-store', () => {
@@ -26,7 +29,11 @@ export const useConnectionStore = defineStore('connection-store', () => {
     onStatusChange: (status: WebSocketConnectionStatus) => {
       webSocketConnectionStatus.value = status
       if (status === 'connected') {
-        loadOfflineMessages()
+        void loadOfflineMessages()
+          .then(() => flushPendingReadReceipts())
+          .catch((error) => {
+            console.error('[connection-store] - Failed to process queued messages:', error)
+          })
       }
     },
     onMessage: (event: MessageEvent) => {
@@ -42,7 +49,9 @@ export const useConnectionStore = defineStore('connection-store', () => {
       if (data.type === 'MESSAGE') {
         const msg = data as unknown as MessageWsMessage
         const inboundMessage: InboundMessage = inboundMessageFromWebsocketMessage(msg.payload)
-        decryptInboundMessageAndPushToChat(inboundMessage)
+        void decryptInboundMessageAndPushToChat(inboundMessage).catch((error) => {
+          console.error('[connection-store] - Failed to process inbound message:', error)
+        })
         return
       }
 

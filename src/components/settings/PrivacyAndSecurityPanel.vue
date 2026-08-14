@@ -16,14 +16,18 @@ const presenceStore = usePresenceStore()
 const contactsStore = useContactsStore()
 
 const localValue = ref<OnlineVisibility>('ALL')
+const localReadReceiptsEnabled = ref(true)
 const isLoading = ref(true)
 const isUpdating = ref(false)
+const isUpdatingReadReceipts = ref(false)
 
 onMounted(async () => {
   if (!settingsStore.onlineVisibility) {
     await settingsStore.fetchSettings()
   }
+  await settingsStore.ensureReadReceiptsLoaded()
   localValue.value = settingsStore.onlineVisibility || 'ALL'
+  localReadReceiptsEnabled.value = settingsStore.readReceiptsEnabled === true
   isLoading.value = false
 })
 
@@ -48,6 +52,24 @@ async function onChange(value: OnlineVisibility) {
     localValue.value = oldValue
   } finally {
     isUpdating.value = false
+  }
+}
+
+async function onReadReceiptsChange(event: Event) {
+  if (isUpdatingReadReceipts.value) return
+
+  const value = (event.target as HTMLInputElement).checked
+  const oldValue = localReadReceiptsEnabled.value
+  localReadReceiptsEnabled.value = value
+  isUpdatingReadReceipts.value = true
+
+  try {
+    await settingsStore.updateReadReceiptsEnabled(value)
+  } catch (error) {
+    console.error('[PrivacyAndSecurityPanel] Failed to update read receipts:', error)
+    localReadReceiptsEnabled.value = oldValue
+  } finally {
+    isUpdatingReadReceipts.value = false
   }
 }
 </script>
@@ -98,6 +120,23 @@ async function onChange(value: OnlineVisibility) {
         <div class="ms-3 d-flex flex-column">
           <span>{{ t('settings.privacy.nobody') }}</span>
           <small class="text-body-secondary">{{ t('settings.privacy.nobody-desc') }}</small>
+        </div>
+      </label>
+
+      <hr class="mx-3 my-2" />
+
+      <label class="privacy-option d-flex align-items-center p-3 m-1 rounded-3">
+        <input
+          class="form-check-input m-0 fs-5"
+          type="checkbox"
+          role="switch"
+          :disabled="isUpdatingReadReceipts"
+          :checked="localReadReceiptsEnabled"
+          @change="onReadReceiptsChange"
+        />
+        <div class="ms-3 d-flex flex-column">
+          <span>{{ t('settings.privacy.read-receipts') }}</span>
+          <small class="text-body-secondary">{{ t('settings.privacy.read-receipts-desc') }}</small>
         </div>
       </label>
     </template>

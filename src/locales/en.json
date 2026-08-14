@@ -112,7 +112,9 @@
       "everyone": "Everyone",
       "everyone-desc": "Your online status is visible to your contacts",
       "nobody": "Nobody",
-      "nobody-desc": "Your online status is hidden from everyone"
+      "nobody-desc": "Your online status is hidden from everyone",
+      "read-receipts": "Read receipts",
+      "read-receipts-desc": "If turned off, you will not send or receive new read receipts on this device"
     },
     "blocking": {
       "blocked-users": "Blocked users",

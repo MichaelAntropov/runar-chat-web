@@ -1,14 +1,18 @@
+import { debounce } from 'lodash'
 import { defineStore } from 'pinia'
 import { ref, watch, type Ref } from 'vue'
-import type { Chat } from './types/chat/Chat'
-import type { Contact } from '../contacts/types/Contact'
-import type { StoredMessage } from './types/chat/StoredMessage'
-import { messageRepository } from '@/db/repositories/MessageRepository'
+
 import { useContactsStore } from '@/contacts/contactStore'
 import { useDbStore } from '@/db/dbStore'
+import { messageRepository } from '@/db/repositories/MessageRepository'
 import { CHATS_STORE, CHATS_STORE_KEY } from '@/db/RunarDB'
 import { useUserStore } from '@/user/userStore'
-import { debounce } from 'lodash'
+
+import type { Contact } from '../contacts/types/Contact'
+
+import type { Chat } from './types/chat/Chat'
+import type { StoredMessage } from './types/chat/StoredMessage'
+import type { ReadReceipt } from './types/receipt/ReadReceipt'
 
 export const MESSAGE_LOAD_COUNT = 15
 export const MESSAGE_LOAD_STEP = 5
@@ -156,18 +160,21 @@ export const useChatsStore = defineStore('chats', () => {
     console.log('Next messages loaded!')
   }
 
-  async function markChatAsRead(chat: Chat): Promise<string[]> {
-    const previousUnreadCount = chat.unreadCount
-    chat.unreadCount = 0
+  async function markVisibleMessagesAsRead(
+    chat: Chat,
+    messageIds: string[],
+  ): Promise<ReadReceipt[]> {
+    if (chat.contact.userId === userStore.principal?.id || messageIds.length === 0) return []
 
     try {
       const readAt = Date.now()
-      const readMessageIds = await messageRepository.markUnreadAsRead(
+      const updatedMessages = await messageRepository.markMessagesAsRead(
         chat.id,
         chat.contact.userId,
+        messageIds,
         readAt,
       )
-      const readMessageIdSet = new Set(readMessageIds)
+      const readMessageIdSet = new Set(updatedMessages.map((message) => message.id))
 
       for (const message of currentChatMessages.value) {
         if (readMessageIdSet.has(message.id)) {
@@ -175,15 +182,35 @@ export const useChatsStore = defineStore('chats', () => {
         }
       }
 
-      return readMessageIds
+      chat.unreadCount = Math.max(0, chat.unreadCount - updatedMessages.length)
+      return updatedMessages.map((message) => ({ messageId: message.id, readAt }))
     } catch (error) {
-      chat.unreadCount = previousUnreadCount
-      console.error(`Could not mark chat id=${chat.id} as read:`, error)
+      console.error(`Could not mark visible messages in chat id=${chat.id} as read:`, error)
       return []
     }
   }
 
-  async function addMessageToChat(chat: Chat, message: StoredMessage): Promise<string[]> {
+  async function applyReadReceipts(chat: Chat, receipts: ReadReceipt[]): Promise<void> {
+    const principalId = userStore.principal?.id
+    if (!principalId || chat.contact.userId === principalId || receipts.length === 0) return
+
+    const updatedMessages = await messageRepository.applyReadReceipts(
+      chat.id,
+      principalId,
+      chat.contact.userId,
+      receipts,
+    )
+    const updatedById = new Map(updatedMessages.map((message) => [message.id, message.readAt]))
+
+    for (const message of currentChatMessages.value) {
+      const readAt = updatedById.get(message.id)
+      if (readAt !== undefined) {
+        message.readAt = readAt
+      }
+    }
+  }
+
+  async function addMessageToChat(chat: Chat, message: StoredMessage): Promise<void> {
     try {
       const isSelfMessage = message.senderId === message.recipientId
       if (isSelfMessage && message.readAt === null) {
@@ -202,18 +229,13 @@ export const useChatsStore = defineStore('chats', () => {
         currentChatMessages.value.push(message)
       }
 
-      let readMessageIds: string[] = []
-      if (isIncoming && !isCurrentChat) {
+      if (isIncoming) {
         chat.unreadCount++
-      } else if (isIncoming) {
-        readMessageIds = await markChatAsRead(chat)
       }
 
       console.log(`Message added id=${message.id} to chat with id=${chat.id}`)
-      return readMessageIds
     } catch (error) {
       console.log(`Could not add message to chat: ${error}`)
-      return []
     }
   }
 
@@ -256,8 +278,17 @@ export const useChatsStore = defineStore('chats', () => {
   }
 
   const isHydrated = ref(false)
+  let hydratePromise: Promise<void> | null = null
 
-  async function hydrate() {
+  async function hydrate(): Promise<void> {
+    if (hydratePromise) return hydratePromise
+    hydratePromise = hydrateInternal().finally(() => {
+      hydratePromise = null
+    })
+    return hydratePromise
+  }
+
+  async function hydrateInternal(): Promise<void> {
     if (!dbStore.db) return
 
     try {
@@ -347,6 +378,8 @@ export const useChatsStore = defineStore('chats', () => {
     chats,
     currentChat,
     currentChatMessages,
+    isHydrated,
+    hydrate,
     createNewChatFromContact,
     changeCurrentChat,
     closeCurrentChat,
@@ -354,6 +387,7 @@ export const useChatsStore = defineStore('chats', () => {
     loadPreviousMessages,
     loadNextMessages,
     addMessageToChat,
-    markChatAsRead,
+    applyReadReceipts,
+    markVisibleMessagesAsRead,
   }
 })

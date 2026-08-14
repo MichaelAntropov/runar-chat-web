@@ -1,5 +1,6 @@
 import { Dexie } from 'dexie'
 
+import type { ReadReceipt } from '@/chat/types/receipt/ReadReceipt'
 import { MESSAGES_STORE } from '@/db/RunarDB'
 
 import type { StoredMessage } from '../../chat/types/chat/StoredMessage'
@@ -47,17 +48,70 @@ export class MessageRepository {
       .count()
   }
 
-  async markUnreadAsRead(chatId: string, senderId: string, readAt: number): Promise<string[]> {
-    const unreadMessages = await this.db[MESSAGES_STORE].where('chatId')
-      .equals(chatId)
-      .filter((message) => message.senderId === senderId && message.readAt === null)
+  async markMessagesAsRead(
+    chatId: string,
+    senderId: string,
+    messageIds: string[],
+    readAt: number,
+  ): Promise<StoredMessage[]> {
+    if (messageIds.length === 0) return []
+
+    const unreadMessages = await this.db[MESSAGES_STORE].where('id')
+      .anyOf(messageIds)
+      .filter(
+        (message) =>
+          message.chatId === chatId && message.senderId === senderId && message.readAt === null,
+      )
       .toArray()
 
     if (unreadMessages.length === 0) return []
 
-    await this.db[MESSAGES_STORE].bulkPut(unreadMessages.map((message) => ({ ...message, readAt })))
+    const updatedMessages = unreadMessages.map((message) => ({ ...message, readAt }))
+    await this.db[MESSAGES_STORE].bulkPut(updatedMessages)
+    return updatedMessages
+  }
 
-    return unreadMessages.map((message) => message.id)
+  async applyReadReceipts(
+    chatId: string,
+    senderId: string,
+    recipientId: string,
+    receipts: ReadReceipt[],
+  ): Promise<StoredMessage[]> {
+    if (receipts.length === 0) return []
+
+    const receiptByMessageId = new Map<string, ReadReceipt>()
+    for (const receipt of receipts) {
+      const existing = receiptByMessageId.get(receipt.messageId)
+      if (!existing || receipt.readAt < existing.readAt) {
+        receiptByMessageId.set(receipt.messageId, receipt)
+      }
+    }
+    const messages = await this.db[MESSAGES_STORE].where('id')
+      .anyOf([...receiptByMessageId.keys()])
+      .filter(
+        (message) =>
+          message.chatId === chatId &&
+          message.senderId === senderId &&
+          message.recipientId === recipientId,
+      )
+      .toArray()
+
+    const updatedMessages = messages
+      .map((message): StoredMessage | null => {
+        const receipt = receiptByMessageId.get(message.id)
+        if (!receipt) return null
+
+        const nextReadAt =
+          message.readAt === null ? receipt.readAt : Math.min(message.readAt, receipt.readAt)
+        if (nextReadAt === message.readAt) return null
+        return { ...message, readAt: nextReadAt }
+      })
+      .filter((message): message is StoredMessage => message !== null)
+
+    if (updatedMessages.length > 0) {
+      await this.db[MESSAGES_STORE].bulkPut(updatedMessages)
+    }
+    return updatedMessages
   }
 }
 

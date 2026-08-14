@@ -3,7 +3,11 @@ import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch 
 import { useI18n } from 'vue-i18n'
 
 import { useBlockingStore } from '@/blocking/blockingStore'
-import { sendMessageInCurrentChat } from '@/chat/ChatService'
+import {
+  flushPendingReadReceipts,
+  queueReadReceipts,
+  sendMessageInCurrentChat,
+} from '@/chat/ChatService'
 import { MESSAGE_LOAD_STEP, useChatsStore } from '@/chat/chatStore'
 import { MessageReceiverBlockedError } from '@/chat/types/message/MessageReceiverBlockedError'
 import { useUserStore } from '@/user/userStore'
@@ -23,10 +27,107 @@ const blockingStore = useBlockingStore()
 const userStore = useUserStore()
 const chatStore = useChatsStore()
 
+let messageObserver: IntersectionObserver | null = null
+let readFlushTimer: number | null = null
+const pendingVisibleMessageIds = new Set<string>()
+
 const isCurrentRecipientBlocked = computed(() => {
   const userId = chatStore.currentChat?.contact.userId
   return userId ? blockingStore.isBlocked(userId) : false
 })
+
+function canMarkMessagesAsRead(): boolean {
+  return document.visibilityState === 'visible' && document.hasFocus()
+}
+
+function isSufficientlyVisible(element: HTMLElement): boolean {
+  const container = messagesContainer.value
+  if (!container) return false
+
+  const elementRect = element.getBoundingClientRect()
+  const containerRect = container.getBoundingClientRect()
+  const visibleContainerTop = Math.max(containerRect.top, 0)
+  const visibleContainerBottom = Math.min(containerRect.bottom, window.innerHeight)
+  const visibleContainerHeight = Math.max(0, visibleContainerBottom - visibleContainerTop)
+  const visibleHeight = Math.max(
+    0,
+    Math.min(elementRect.bottom, visibleContainerBottom) -
+      Math.max(elementRect.top, visibleContainerTop),
+  )
+  const availableHeight = Math.min(elementRect.height, visibleContainerHeight)
+  return availableHeight > 0 && visibleHeight >= availableHeight * 0.5
+}
+
+function queueVisibleMessage(element: HTMLElement): void {
+  const chat = chatStore.currentChat
+  const principalId = userStore.principal?.id
+  const messageId = element.dataset.messageId
+  if (!chat || !principalId || !messageId || chat.contact.userId === principalId) return
+
+  const message = chatStore.currentChatMessages.find((candidate) => candidate.id === messageId)
+  if (!message || message.senderId !== chat.contact.userId || message.readAt !== null) return
+
+  pendingVisibleMessageIds.add(messageId)
+  scheduleVisibleReadFlush()
+}
+
+function markCurrentlyVisibleMessages(): void {
+  if (!canMarkMessagesAsRead() || !messagesContainer.value) return
+  const elements = messagesContainer.value.querySelectorAll<HTMLElement>('[data-message-id]')
+  for (const element of elements) {
+    if (isSufficientlyVisible(element)) queueVisibleMessage(element)
+  }
+}
+
+function scheduleVisibleReadFlush(): void {
+  if (readFlushTimer !== null) return
+  readFlushTimer = window.setTimeout(() => {
+    readFlushTimer = null
+    void flushVisibleReads()
+  }, 50)
+}
+
+async function flushVisibleReads(): Promise<void> {
+  const chat = chatStore.currentChat
+  if (!chat || !canMarkMessagesAsRead() || pendingVisibleMessageIds.size === 0) return
+
+  const messageIds = [...pendingVisibleMessageIds]
+  pendingVisibleMessageIds.clear()
+  const receipts = await chatStore.markVisibleMessagesAsRead(chat, messageIds)
+  try {
+    await queueReadReceipts(chat, receipts)
+  } catch (error) {
+    console.error('[ChatView] Failed to queue read receipts:', error)
+  }
+}
+
+async function observeMessageBubbles(): Promise<void> {
+  messageObserver?.disconnect()
+  messageObserver = null
+  if (!messagesContainer.value) return
+
+  await nextTick()
+  messageObserver = new IntersectionObserver(
+    (entries) => {
+      if (!canMarkMessagesAsRead()) return
+      for (const entry of entries) {
+        const element = entry.target as HTMLElement
+        if (entry.isIntersecting && isSufficientlyVisible(element)) {
+          queueVisibleMessage(element)
+        }
+      }
+    },
+    { root: messagesContainer.value, threshold: [0, 0.5] },
+  )
+
+  const elements = messagesContainer.value.querySelectorAll<HTMLElement>('[data-message-id]')
+  elements.forEach((element) => messageObserver?.observe(element))
+  markCurrentlyVisibleMessages()
+}
+
+function handlePageVisibilityOrFocus(): void {
+  if (canMarkMessagesAsRead()) markCurrentlyVisibleMessages()
+}
 
 const adjustMessageTextAreaHeight = () => {
   if (messageTextArea.value !== null) {
@@ -52,6 +153,7 @@ function handleScrollChange() {
       chatStore.currentChat.autoScroll = false
       chatStore.currentChat.scrollPosition = scrollTop
     }
+    markCurrentlyVisibleMessages()
   }
 }
 
@@ -204,9 +306,10 @@ watch(
   () => chatStore.currentChat,
   async (newChat) => {
     sendError.value = ''
+    pendingVisibleMessageIds.clear()
+    messageObserver?.disconnect()
     if (newChat) {
       console.log(`Load messages for ${newChat.id}`)
-      await chatStore.markChatAsRead(newChat)
       await chatStore.loadMessagesFromDB()
       await nextTick()
 
@@ -217,7 +320,16 @@ watch(
       if (messagesContainer.value && newChat.autoScroll) {
         messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
       }
+      await observeMessageBubbles()
     }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => chatStore.isHydrated,
+  (isHydrated) => {
+    if (isHydrated) void flushPendingReadReceipts()
   },
   { immediate: true },
 )
@@ -235,9 +347,9 @@ async function reloadLatestOnScrollEnd() {
 }
 
 watch(
-  () => chatStore.currentChatMessages,
+  () => chatStore.currentChatMessages.map((message) => message.id),
   async (newMessages) => {
-    if (newMessages && chatStore.currentChat?.autoScroll && messagesContainer.value) {
+    if (newMessages.length > 0 && chatStore.currentChat?.autoScroll && messagesContainer.value) {
       await nextTick() // Wait for Vue to re-render messages
 
       console.log('Auto scroll....')
@@ -249,8 +361,9 @@ watch(
 
       messagesContainer.value.addEventListener('scroll', reloadLatestOnScrollEnd)
     }
+    await observeMessageBubbles()
   },
-  { deep: true, immediate: true }, // deep watches array changes
+  { immediate: true },
 )
 
 onMounted(() => {
@@ -258,13 +371,23 @@ onMounted(() => {
     messagesContainer.value.addEventListener('scroll', handleScrollChange)
     messagesContainer.value.addEventListener('scroll', loadMessagesOnScroll)
   }
+  document.addEventListener('visibilitychange', handlePageVisibilityOrFocus)
+  window.addEventListener('focus', handlePageVisibilityOrFocus)
+  window.addEventListener('resize', handlePageVisibilityOrFocus)
+  void observeMessageBubbles()
 })
 
 onUnmounted(() => {
+  messageObserver?.disconnect()
+  if (readFlushTimer !== null) window.clearTimeout(readFlushTimer)
+  pendingVisibleMessageIds.clear()
   if (messagesContainer.value) {
     messagesContainer.value.removeEventListener('scroll', handleScrollChange)
     messagesContainer.value.removeEventListener('scroll', loadMessagesOnScroll)
   }
+  document.removeEventListener('visibilitychange', handlePageVisibilityOrFocus)
+  window.removeEventListener('focus', handlePageVisibilityOrFocus)
+  window.removeEventListener('resize', handlePageVisibilityOrFocus)
 })
 </script>
 

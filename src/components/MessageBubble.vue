@@ -13,6 +13,9 @@ const props = defineProps<Props>()
 
 const userStore = useUserStore()
 
+const isOutgoingMessage = computed(() => props.message.senderId === userStore.principal?.id)
+const isSavedMessage = computed(() => props.message.senderId === props.message.recipientId)
+
 const msgBubbleSideClass: ComputedRef<string> = computed(() => {
   if (props.message.senderId === userStore.principal?.id || !props.message.senderId) {
     return 'right'
@@ -43,17 +46,20 @@ const formatDateFromTimestamp = (timestamp: number | undefined): string => {
       },
     ]"
     :id="message.id"
+    :data-message-id="message.id"
   >
     <p class="m-0 message-text-content text-body-emphasis">
       {{ props.message.content }}
     </p>
     <div class="d-flex align-items-center justify-content-end">
       <small class="text-muted">{{ formatDateFromTimestamp(props.message.createdAt) }}</small>
-      <template v-if="msgBubbleSideClass === 'right'">
-        <!-- <i v-if="message.read" class="bi bi-check-all text-info ms-1"></i> -->
-        <!-- <i v-else-if="message.delivered" class="bi bi-check-all text-subtle ms-1"></i> -->
-        <!-- <i v-else-if="message.id" class="bi bi-check text-subtle ms-1"></i> -->
-        <i v-if="message.id" class="bi bi-check text-subtle ms-1"></i>
+      <template v-if="isOutgoingMessage">
+        <i
+          v-if="!isSavedMessage && message.readAt !== null"
+          class="bi bi-check-all text-info ms-1"
+          aria-label="Read"
+        ></i>
+        <i v-else-if="message.id" class="bi bi-check text-subtle ms-1" aria-label="Sent"></i>
       </template>
     </div>
   </div>

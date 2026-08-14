@@ -1,19 +1,22 @@
-import { useChatsStore } from './chatStore'
-import { useDeviceStore } from '../device/deviceStore'
-import type { InitDeviceKeyBundle, InitKeyBundle } from './types/key-bundle/InitKeyBundleResponse'
 import { sessionsApi } from '@/auth/api/sessionsApi'
-import { useUserStore } from '@/user/userStore'
 import type { Chat } from '@/chat/types/chat/Chat'
-import type { DeviceMessagePayload, MessagePayload } from './types/message/MessagePayload'
-import type { SendMessageResponse } from '@/chat/types/message/SendMessageResponse'
 import type { StoredMessage } from '@/chat/types/chat/StoredMessage'
-import type { OneTimePreKeyState } from '@/device/types/OneTimePreKeyState'
-import type { IdentityKey } from './types/identity-key/IdentityKey'
+import type { SendMessageResponse } from '@/chat/types/message/SendMessageResponse'
+import { contactApi } from '@/contacts/contactApi'
 import { useContactsStore } from '@/contacts/contactStore'
-import type { InboundMessage } from './types/message/InboundMessage'
-import type { ChatState } from './types/chat/ChatState'
-import type { RatchetEncryptResult } from './crypto/types/RatchetEncryptResult'
+import type { FoundUser } from '@/contacts/types/FindUserResponse'
 import { parseUtcTimestamp, uint8ArrayToBase64 } from '@/core/utils'
+import { chatStateRepository } from '@/db/repositories/ChatStateRepository'
+import { pendingReadReceiptRepository } from '@/db/repositories/PendingReadReceiptRepository'
+import { preKeyRepository } from '@/db/repositories/PreKeyRepository'
+import type { OneTimePreKeyState } from '@/device/types/OneTimePreKeyState'
+import { useSettingsStore } from '@/settings/settingsStore'
+import { useUserStore } from '@/user/userStore'
+
+import { useDeviceStore } from '../device/deviceStore'
+
+import { chatApi } from './api/chatApi'
+import { useChatsStore } from './chatStore'
 import {
   establishSecretKeyWithSender,
   generateSecretKeyForKeyBundle,
@@ -25,17 +28,39 @@ import {
   ratchetDecrypt,
   ratchetEncrypt,
 } from './crypto/ratchet'
-import { chatStateRepository } from '@/db/repositories/ChatStateRepository'
-import { preKeyRepository } from '@/db/repositories/PreKeyRepository'
-import { chatApi } from './api/chatApi'
-import { contactApi } from '@/contacts/contactApi'
-import type { FoundUser } from '@/contacts/types/FindUserResponse'
-import type { SkippedMessageKey } from './crypto/types/SkippedMessage'
-import type { InitialRatchetKeys } from './crypto/types/InitialRatchetKeys'
-import { MissingDevicesError } from './types/message/MissingDevicesError'
 import type { GeneratedSecretKeyBundle } from './crypto/types/GeneratedSecretKeyBundle'
+import type { InitialRatchetKeys } from './crypto/types/InitialRatchetKeys'
+import type { RatchetEncryptResult } from './crypto/types/RatchetEncryptResult'
+import type { SkippedMessageKey } from './crypto/types/SkippedMessage'
+import type { ChatState } from './types/chat/ChatState'
 import type { EncodedMessage } from './types/chat/Message'
+import type { NoOpMessage } from './types/chat/NoOpMessage'
+import type { ReadReceiptMessage } from './types/chat/ReadReceiptMessage'
 import type { TextMessage } from './types/chat/TextMessage'
+import type { IdentityKey } from './types/identity-key/IdentityKey'
+import type { InitDeviceKeyBundle, InitKeyBundle } from './types/key-bundle/InitKeyBundleResponse'
+import type { InboundMessage } from './types/message/InboundMessage'
+import { MessageReceiverBlockedError } from './types/message/MessageReceiverBlockedError'
+import type { DeviceMessagePayload, MessagePayload } from './types/message/MessagePayload'
+import { MissingDevicesError } from './types/message/MissingDevicesError'
+import type { ReadReceipt } from './types/receipt/ReadReceipt'
+
+const MAX_READ_RECEIPTS_PER_MESSAGE = 100
+const READ_RECEIPT_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+let ratchetQueue: Promise<void> = Promise.resolve()
+let receiptFlushPromise: Promise<void> | null = null
+let receiptFlushRequested = false
+
+function enqueueRatchetOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = ratchetQueue.then(operation, operation)
+  ratchetQueue = result.then(
+    () => undefined,
+    () => undefined,
+  )
+  return result
+}
 
 function getOrCreateSavedMessagesChat(): Chat | null {
   const userStore = useUserStore()
@@ -66,7 +91,11 @@ export function openSavedMessagesChat(): Chat | null {
  * Encrypts and sends a message to the user in the currently selected chat.
  * @param content The string content to send.
  */
-export async function sendMessageInCurrentChat(content: string, retryCount = 0) {
+export async function sendMessageInCurrentChat(content: string): Promise<void> {
+  return enqueueRatchetOperation(() => sendMessageInCurrentChatInternal(content))
+}
+
+async function sendMessageInCurrentChatInternal(content: string): Promise<void> {
   const userStore = useUserStore()
   const deviceStore = useDeviceStore()
   const chatStore = useChatsStore()
@@ -85,13 +114,7 @@ export async function sendMessageInCurrentChat(content: string, retryCount = 0) 
     `sendMessageInCurrentChat() - Sending message in chat(${chat.id}) to ${chat.contact.username}`,
   )
 
-  let existingChatStates: ChatState[] = await getEstablishedChatStatesForChat(chat)
-  if (existingChatStates.length === 0) {
-    console.log('sendMessageInCurrentChat() - No existing chat states. Establishing new session...')
-    await establishChatStateForChat(chat)
-    existingChatStates = await getEstablishedChatStatesForChat(chat)
-  }
-
+  const existingChatStates = await ensureChatStatesForChat(chat)
   if (chat.contact.userId === userStore.principal.id && existingChatStates.length === 0) {
     const createdAt = Date.now()
     const localMessage: StoredMessage = {
@@ -107,109 +130,231 @@ export async function sendMessageInCurrentChat(content: string, retryCount = 0) 
     return
   }
 
-  console.log('sendMessageInCurrentChat() - Chat states fetched!')
-
-  const senderIdEncoded = new TextEncoder().encode(userStore.principal.id)
-
-  const messagePayloads: DeviceMessagePayload[] = await Promise.all(
-    existingChatStates.map(async (chatState: ChatState) => {
-      console.log(
-        `sendMessageInCurrentChat() - Encrypt message for user=${chatState.userId} with device=${chatState.deviceId}`,
-      )
-
-      const receiverIdEncoded = new TextEncoder().encode(chatState.userId)
-
-      const associatedData = new Uint8Array(senderIdEncoded.length + receiverIdEncoded.length)
-      associatedData.set(senderIdEncoded)
-      associatedData.set(receiverIdEncoded, senderIdEncoded.length)
-
-      const textMessage: TextMessage = {
-        type: 'TEXT',
-        ultimateReceiverId: chat.contact.userId,
-        content: content,
-      }
-
-      const encryptResult: RatchetEncryptResult = await ratchetEncrypt(
-        chatState,
-        new TextEncoder().encode(JSON.stringify(textMessage)),
-        associatedData,
-      )
-
-      return {
-        receiverUserId: chatState.userId,
-        receiverDeviceId: chatState.deviceId,
-        receiverPreKeyId: chatState.deviceId,
-        receiverOneTimePreKeyId: chatState.preKeyIdUsed,
-        senderEphemeralKey: chatState.ephemeralPublicBytes
-          ? uint8ArrayToBase64(chatState.ephemeralPublicBytes)
-          : null,
-        cipherPayload: uint8ArrayToBase64(encryptResult.encryptedPayload),
-        encryptedHeader: uint8ArrayToBase64(encryptResult.encryptedHeader),
-      }
-    }),
-  )
-
-  const messagePayload: MessagePayload = {
-    deviceMessages: messagePayloads,
+  const textMessage: TextMessage = {
+    type: 'TEXT',
+    ultimateReceiverId: chat.contact.userId,
+    content,
   }
 
+  const response = await sendEncryptedMessage(chat, () => textMessage)
+  console.log(`sendMessageInCurrentChat() - Send message response: `, response)
+
+  const newStoredMessage: StoredMessage = {
+    id: response.messageId,
+    chatId: chat.id,
+    senderId: userStore.principal.id,
+    recipientId: chat.contact.userId,
+    createdAt: parseUtcTimestamp(response.createdAt),
+    content,
+    readAt: null,
+  }
+  await chatStore.addMessageToChat(chat, newStoredMessage)
+}
+
+async function ensureChatStatesForChat(chat: Chat): Promise<ChatState[]> {
+  const userStore = useUserStore()
+  let chatStates = await getEstablishedChatStatesForChat(chat)
+  const hasTargetState = chatStates.some((chatState) => chatState.userId === chat.contact.userId)
+
+  if (!hasTargetState) {
+    console.log('ensureChatStatesForChat() - Establishing missing target sessions...')
+    await establishChatStateForChat(chat)
+    chatStates = await getEstablishedChatStatesForChat(chat)
+  }
+
+  if (chat.contact.userId !== userStore.principal?.id) {
+    if (!chatStates.some((chatState) => chatState.userId === chat.contact.userId)) {
+      throw new Error(`No target device sessions available for chat=${chat.id}`)
+    }
+    return chatStates
+  }
+  return chatStates.filter((chatState) => chatState.userId === chat.contact.userId)
+}
+
+async function encryptForChatState(
+  chatState: ChatState,
+  encodedMessage: EncodedMessage,
+  senderId: string,
+): Promise<DeviceMessagePayload> {
+  const senderIdEncoded = new TextEncoder().encode(senderId)
+  const receiverIdEncoded = new TextEncoder().encode(chatState.userId)
+  const associatedData = new Uint8Array(senderIdEncoded.length + receiverIdEncoded.length)
+  associatedData.set(senderIdEncoded)
+  associatedData.set(receiverIdEncoded, senderIdEncoded.length)
+
+  const encryptResult: RatchetEncryptResult = await ratchetEncrypt(
+    chatState,
+    new TextEncoder().encode(JSON.stringify(encodedMessage)),
+    associatedData,
+  )
+
+  await chatStateRepository.updateChatState(chatState)
+
+  return {
+    receiverUserId: chatState.userId,
+    receiverDeviceId: chatState.deviceId,
+    receiverPreKeyId: chatState.deviceId,
+    receiverOneTimePreKeyId: chatState.preKeyIdUsed,
+    senderEphemeralKey: chatState.ephemeralPublicBytes
+      ? uint8ArrayToBase64(chatState.ephemeralPublicBytes)
+      : null,
+    cipherPayload: uint8ArrayToBase64(encryptResult.encryptedPayload),
+    encryptedHeader: uint8ArrayToBase64(encryptResult.encryptedHeader),
+  }
+}
+
+async function sendEncryptedMessage(
+  chat: Chat,
+  messageForState: (chatState: ChatState) => EncodedMessage,
+  retryCount = 0,
+): Promise<SendMessageResponse> {
+  const principalId = useUserStore().principal?.id
+  if (!principalId) throw new Error('No authenticated principal')
+
+  const chatStates = await ensureChatStatesForChat(chat)
+  if (chatStates.length === 0) throw new Error('No target device sessions available')
+
+  const deviceMessages = await Promise.all(
+    chatStates.map((chatState) =>
+      encryptForChatState(chatState, messageForState(chatState), principalId),
+    ),
+  )
+  const messagePayload: MessagePayload = { deviceMessages }
+
   try {
-    const response: SendMessageResponse = await chatApi.postSendMessagePayload(messagePayload)
-
-    console.log(`sendMessageInCurrentChat() - Send message response: `, response)
-
-    const newStoredMessage: StoredMessage = {
-      id: response.messageId,
-      chatId: chat.id,
-      senderId: userStore.principal.id,
-      recipientId: chat.contact.userId,
-      createdAt: parseUtcTimestamp(response.createdAt),
-      content: content,
-      readAt: null,
-    }
-
-    for (const chatState of existingChatStates) {
-      await chatStateRepository.updateChatState(chatState)
-    }
-    await chatStore.addMessageToChat(chat, newStoredMessage)
+    return await chatApi.postSendMessagePayload(messagePayload)
   } catch (error) {
-    if (error instanceof MissingDevicesError) {
-      console.warn('sendMessageInCurrentChat() - Missing Devices:', error.deviceIds)
+    if (!(error instanceof MissingDevicesError) || retryCount >= 2) throw error
 
-      if (retryCount >= 2) {
-        console.error(`sendMessageInCurrentChat() - Aborting after 2 retries for missing devices.`)
-        throw error
+    console.warn('sendEncryptedMessage() - Missing devices:', error.deviceIds)
+    const keyBundles: Map<string, InitDeviceKeyBundle[]> = await chatApi.getKeyBundles(
+      error.deviceIds,
+    )
+    let establishedCount = 0
+    for (const [userId, bundles] of keyBundles.entries()) {
+      for (const bundle of bundles) {
+        await establishChatStateForKeyBundle(userId, bundle)
+        establishedCount++
       }
+    }
+    if (establishedCount === 0) throw error
 
-      let count = 0
-      const keyBundles: Map<string, InitDeviceKeyBundle[]> = await chatApi.getKeyBundles(
-        error.deviceIds,
+    return sendEncryptedMessage(chat, messageForState, retryCount + 1)
+  }
+}
+
+export async function queueReadReceipts(chat: Chat, receipts: ReadReceipt[]): Promise<void> {
+  const principalId = useUserStore().principal?.id
+  if (
+    !principalId ||
+    chat.contact.userId === principalId ||
+    receipts.length === 0 ||
+    !(await useSettingsStore().ensureReadReceiptsLoaded())
+  ) {
+    return
+  }
+
+  const expiresAt = Date.now() + READ_RECEIPT_LIFETIME_MS
+  await pendingReadReceiptRepository.save(
+    receipts.map((receipt) => ({
+      messageId: receipt.messageId,
+      chatId: chat.id,
+      readAt: receipt.readAt,
+      expiresAt,
+    })),
+  )
+  await flushPendingReadReceipts()
+}
+
+export async function flushPendingReadReceipts(): Promise<void> {
+  if (receiptFlushPromise) {
+    receiptFlushRequested = true
+    return receiptFlushPromise
+  }
+
+  receiptFlushPromise = flushPendingReadReceiptsInternal().finally(() => {
+    receiptFlushPromise = null
+    if (receiptFlushRequested) {
+      receiptFlushRequested = false
+      void flushPendingReadReceipts()
+    }
+  })
+  return receiptFlushPromise
+}
+
+async function flushPendingReadReceiptsInternal(): Promise<void> {
+  const settingsStore = useSettingsStore()
+  const userStore = useUserStore()
+  const chatStore = useChatsStore()
+  const principalId = userStore.principal?.id
+  if (!principalId || !(await settingsStore.ensureReadReceiptsLoaded())) {
+    await pendingReadReceiptRepository.clear()
+    return
+  }
+
+  const now = Date.now()
+  const pendingReceipts = await pendingReadReceiptRepository.getAll()
+  const expiredIds = pendingReceipts
+    .filter((receipt) => receipt.expiresAt <= now)
+    .map((receipt) => receipt.messageId)
+  await pendingReadReceiptRepository.deleteByMessageIds(expiredIds)
+
+  const validReceipts = pendingReceipts.filter((receipt) => receipt.expiresAt > now)
+  const receiptsByChat = new Map<string, typeof validReceipts>()
+  for (const receipt of validReceipts) {
+    const chatReceipts = receiptsByChat.get(receipt.chatId) ?? []
+    chatReceipts.push(receipt)
+    receiptsByChat.set(receipt.chatId, chatReceipts)
+  }
+
+  for (const [chatId, chatReceipts] of receiptsByChat.entries()) {
+    const chat = chatStore.chats.find((candidate) => candidate.id === chatId)
+    if (!chat) continue
+    if (chat.contact.userId === principalId) {
+      await pendingReadReceiptRepository.deleteByMessageIds(
+        chatReceipts.map((receipt) => receipt.messageId),
       )
-      for (const [userId, bundles] of keyBundles.entries()) {
-        for (const bundle of bundles) {
-          await establishChatStateForKeyBundle(userId, bundle)
-          count++
+      continue
+    }
+
+    for (let index = 0; index < chatReceipts.length; index += MAX_READ_RECEIPTS_PER_MESSAGE) {
+      const batch = chatReceipts.slice(index, index + MAX_READ_RECEIPTS_PER_MESSAGE)
+      try {
+        const sent = await enqueueRatchetOperation(async () => {
+          if (!(await settingsStore.ensureReadReceiptsLoaded())) return false
+
+          const receiptMessage: ReadReceiptMessage = {
+            type: 'READ_RECEIPT',
+            ultimateReceiverId: chat.contact.userId,
+            receipts: batch.map(({ messageId, readAt }) => ({ messageId, readAt })),
+          }
+          const noOpMessage: NoOpMessage = {
+            type: 'NO_OP',
+            ultimateReceiverId: principalId,
+          }
+
+          await sendEncryptedMessage(chat, (chatState) =>
+            chatState.userId === principalId ? noOpMessage : receiptMessage,
+          )
+          return true
+        })
+
+        if (!sent) {
+          await pendingReadReceiptRepository.clear()
+          return
         }
-      }
-
-      if (count === 0) {
-        console.error(
-          'sendMessageInCurrentChat() - API reported missing devices, but no key bundles were returned.',
+        await pendingReadReceiptRepository.deleteByMessageIds(
+          batch.map((receipt) => receipt.messageId),
         )
-        throw error
+      } catch (error) {
+        if (error instanceof MessageReceiverBlockedError) {
+          await pendingReadReceiptRepository.deleteByMessageIds(
+            batch.map((receipt) => receipt.messageId),
+          )
+          continue
+        }
+        console.error(`[readReceipts] Failed to send receipt batch for chat=${chatId}:`, error)
       }
-
-      console.log(
-        `sendMessageInCurrentChat() - Recovered ${count} sessions. Retrying... (Attempt ${retryCount + 1})`,
-      )
-
-      console.log(
-        'sendMessageInCurrentChat() - Retrying to send message after establishing keys...',
-      )
-      await sendMessageInCurrentChat(content, retryCount + 1)
-    } else {
-      console.error('sendMessageInCurrentChat() - Failed to send', error)
-      throw error
     }
   }
 }
@@ -241,7 +386,11 @@ export async function fetchAndDecryptOfflineMessages() {
  * Decrypts an incoming message and stores it.
  * @param msg The inbound message data.
  */
-export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
+export function decryptInboundMessageAndPushToChat(msg: InboundMessage): Promise<void> {
+  return enqueueRatchetOperation(() => decryptInboundMessageAndPushToChatInternal(msg))
+}
+
+async function decryptInboundMessageAndPushToChatInternal(msg: InboundMessage): Promise<void> {
   const userStore = useUserStore()
   const deviceStore = useDeviceStore()
   const chatStore = useChatsStore()
@@ -251,16 +400,8 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
     return
   }
 
-  if (msg.senderId !== userStore.principal.id) {
-    try {
-      await getExistingOrCreateNewChat(msg.senderId)
-    } catch (error) {
-      console.error(
-        `decryptInboundMessageAndPushToChat() - Failed to get/create chat for userId=${msg.senderId}:`,
-        error,
-      )
-      return
-    }
+  if (!chatStore.isHydrated) {
+    await chatStore.hydrate()
   }
 
   let chatState: ChatState | undefined = await getEstablishedChatStateForDeviceId(
@@ -358,16 +499,15 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
     msg.cipherPayload,
     associatedData,
   )
+  await chatStateRepository.updateChatState(chatState)
 
-  const encodedMessage: EncodedMessage = JSON.parse(
-    new TextDecoder().decode(content),
-  ) as EncodedMessage
+  const encodedMessage: unknown = JSON.parse(new TextDecoder().decode(content))
 
   console.log(
     `decryptInboundMessageAndPushToChat() - Decrypted message: ${JSON.stringify(encodedMessage)}`,
   )
 
-  if (encodedMessage.type === 'TEXT') {
+  if (isTextMessage(encodedMessage)) {
     const actualChatUserId =
       msg.senderId === userStore.principal.id ? encodedMessage.ultimateReceiverId : msg.senderId
 
@@ -389,7 +529,6 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
       return
     }
 
-    const textMessage: TextMessage = encodedMessage as TextMessage
     const createdAt = parseUtcTimestamp(msg.createdAt)
 
     const newStoredMessage: StoredMessage = {
@@ -397,21 +536,69 @@ export async function decryptInboundMessageAndPushToChat(msg: InboundMessage) {
       chatId: chat.id,
       senderId: msg.senderId,
       recipientId:
-        msg.senderId === userStore.principal.id
-          ? actualChatUserId
-          : userStore.principal.id,
+        msg.senderId === userStore.principal.id ? actualChatUserId : userStore.principal.id,
       createdAt,
-      content: textMessage.content,
+      content: encodedMessage.content,
       readAt: actualChatUserId === userStore.principal.id ? createdAt : null,
     }
 
-    await chatStateRepository.updateChatState(chatState)
     await chatStore.addMessageToChat(chat, newStoredMessage)
+  } else if (isReadReceiptMessage(encodedMessage)) {
+    if (
+      msg.senderId === userStore.principal.id ||
+      encodedMessage.ultimateReceiverId !== userStore.principal.id ||
+      !(await useSettingsStore().ensureReadReceiptsLoaded())
+    ) {
+      return
+    }
+
+    const chat = chatStore.chats.find((candidate) => candidate.contact.userId === msg.senderId)
+    if (!chat || chat.contact.userId === userStore.principal.id) return
+
+    await chatStore.applyReadReceipts(chat, encodedMessage.receipts)
+  } else if (isNoOpMessage(encodedMessage)) {
+    return
   } else {
-    console.warn(
-      `decryptInboundMessageAndPushToChat() - Unknown message type: ${encodedMessage.type}`,
-    )
+    console.warn('decryptInboundMessageAndPushToChat() - Unknown or malformed message type')
   }
+}
+
+function isTextMessage(message: unknown): message is TextMessage {
+  if (!message || typeof message !== 'object') return false
+  const candidate = message as Partial<TextMessage>
+  return (
+    candidate.type === 'TEXT' &&
+    typeof candidate.ultimateReceiverId === 'string' &&
+    typeof candidate.content === 'string'
+  )
+}
+
+function isReadReceiptMessage(message: unknown): message is ReadReceiptMessage {
+  if (!message || typeof message !== 'object') return false
+  const candidate = message as Partial<ReadReceiptMessage>
+  return (
+    candidate.type === 'READ_RECEIPT' &&
+    typeof candidate.ultimateReceiverId === 'string' &&
+    Array.isArray(candidate.receipts) &&
+    candidate.receipts.length > 0 &&
+    candidate.receipts.length <= MAX_READ_RECEIPTS_PER_MESSAGE &&
+    candidate.receipts.every(
+      (receipt) =>
+        receipt !== null &&
+        typeof receipt === 'object' &&
+        typeof receipt.messageId === 'string' &&
+        UUID_PATTERN.test(receipt.messageId) &&
+        typeof receipt.readAt === 'number' &&
+        Number.isFinite(receipt.readAt) &&
+        receipt.readAt > 0,
+    )
+  )
+}
+
+function isNoOpMessage(message: unknown): message is NoOpMessage {
+  if (!message || typeof message !== 'object') return false
+  const candidate = message as Partial<NoOpMessage>
+  return candidate.type === 'NO_OP' && typeof candidate.ultimateReceiverId === 'string'
 }
 
 async function getExistingOrCreateNewChat(userId: string): Promise<Chat | null> {
