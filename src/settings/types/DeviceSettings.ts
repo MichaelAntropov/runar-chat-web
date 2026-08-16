@@ -1,4 +1,6 @@
+import type { ReadReceiptMode } from './ReadReceiptMode'
+
 export interface DeviceSettings {
   id: string
-  readReceiptsEnabled: boolean
+  readReceiptMode: ReadReceiptMode
 }

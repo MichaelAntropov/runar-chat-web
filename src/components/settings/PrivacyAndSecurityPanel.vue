@@ -3,10 +3,12 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useBlockingStore } from '@/blocking/blockingStore'
+import { flushPendingReadReceipts } from '@/chat/ChatService'
 import { useContactsStore } from '@/contacts/contactStore'
 import { usePresenceStore } from '@/presence/presenceStore'
 import { useSettingsStore } from '@/settings/settingsStore'
 import type { OnlineVisibility } from '@/settings/types/OnlineVisibility'
+import type { ReadReceiptMode } from '@/settings/types/ReadReceiptMode'
 
 const { t } = useI18n()
 const emit = defineEmits<{ navigate: [panel: string] }>()
@@ -16,18 +18,41 @@ const presenceStore = usePresenceStore()
 const contactsStore = useContactsStore()
 
 const localValue = ref<OnlineVisibility>('ALL')
-const localReadReceiptsEnabled = ref(true)
+const localReadReceiptMode = ref<ReadReceiptMode>('ALL')
 const isLoading = ref(true)
 const isUpdating = ref(false)
 const isUpdatingReadReceipts = ref(false)
+const readReceiptUpdateError = ref(false)
+
+const readReceiptOptions: Array<{
+  descriptionKey: string
+  labelKey: string
+  value: ReadReceiptMode
+}> = [
+  {
+    value: 'ALL',
+    labelKey: 'settings.privacy.read-receipts-send-all',
+    descriptionKey: 'settings.privacy.read-receipts-send-all-desc',
+  },
+  {
+    value: 'PER_USER',
+    labelKey: 'settings.privacy.read-receipts-per-user',
+    descriptionKey: 'settings.privacy.read-receipts-per-user-desc',
+  },
+  {
+    value: 'NONE',
+    labelKey: 'settings.privacy.read-receipts-off',
+    descriptionKey: 'settings.privacy.read-receipts-off-desc',
+  },
+]
 
 onMounted(async () => {
   if (!settingsStore.onlineVisibility) {
     await settingsStore.fetchSettings()
   }
-  await settingsStore.ensureReadReceiptsLoaded()
+  await settingsStore.ensureReadReceiptModeLoaded()
   localValue.value = settingsStore.onlineVisibility || 'ALL'
-  localReadReceiptsEnabled.value = settingsStore.readReceiptsEnabled === true
+  localReadReceiptMode.value = settingsStore.readReceiptMode ?? 'ALL'
   isLoading.value = false
 })
 
@@ -55,19 +80,21 @@ async function onChange(value: OnlineVisibility) {
   }
 }
 
-async function onReadReceiptsChange(event: Event) {
-  if (isUpdatingReadReceipts.value) return
+async function onReadReceiptModeChange(value: ReadReceiptMode) {
+  if (isUpdatingReadReceipts.value || value === localReadReceiptMode.value) return
 
-  const value = (event.target as HTMLInputElement).checked
-  const oldValue = localReadReceiptsEnabled.value
-  localReadReceiptsEnabled.value = value
+  const oldValue = localReadReceiptMode.value
+  localReadReceiptMode.value = value
   isUpdatingReadReceipts.value = true
+  readReceiptUpdateError.value = false
 
   try {
-    await settingsStore.updateReadReceiptsEnabled(value)
+    await settingsStore.updateReadReceiptMode(value)
+    await flushPendingReadReceipts()
   } catch (error) {
     console.error('[PrivacyAndSecurityPanel] Failed to update read receipts:', error)
-    localReadReceiptsEnabled.value = oldValue
+    localReadReceiptMode.value = oldValue
+    readReceiptUpdateError.value = true
   } finally {
     isUpdatingReadReceipts.value = false
   }
@@ -125,20 +152,34 @@ async function onReadReceiptsChange(event: Event) {
 
       <hr class="mx-3 my-2" />
 
-      <label class="privacy-option d-flex align-items-center p-3 m-1 rounded-3">
+      <p class="m-2 p-3 pb-0 pt-0 fs-6 fw-medium">
+        {{ t('settings.privacy.read-receipts') }}
+      </p>
+
+      <label
+        v-for="option in readReceiptOptions"
+        :key="option.value"
+        class="privacy-option d-flex align-items-center p-3 m-1 rounded-3"
+        :class="{ 'active-option': localReadReceiptMode === option.value }"
+      >
         <input
           class="form-check-input m-0 fs-5"
-          type="checkbox"
-          role="switch"
+          type="radio"
+          name="readReceiptMode"
+          :value="option.value"
           :disabled="isUpdatingReadReceipts"
-          :checked="localReadReceiptsEnabled"
-          @change="onReadReceiptsChange"
+          :checked="localReadReceiptMode === option.value"
+          @change="onReadReceiptModeChange(option.value)"
         />
         <div class="ms-3 d-flex flex-column">
-          <span>{{ t('settings.privacy.read-receipts') }}</span>
-          <small class="text-body-secondary">{{ t('settings.privacy.read-receipts-desc') }}</small>
+          <span>{{ t(option.labelKey) }}</span>
+          <small class="text-body-secondary">{{ t(option.descriptionKey) }}</small>
         </div>
       </label>
+
+      <div v-if="readReceiptUpdateError" class="alert alert-danger mx-3 mt-2 mb-0" role="alert">
+        {{ t('settings.privacy.read-receipts-update-error') }}
+      </div>
     </template>
 
     <hr class="mx-3 my-2" />

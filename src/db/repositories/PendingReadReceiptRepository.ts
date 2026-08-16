@@ -22,6 +22,13 @@ export class PendingReadReceiptRepository {
     await this.db[PENDING_READ_RECEIPTS_STORE].bulkDelete(messageIds)
   }
 
+  async deleteByChatId(chatId: string): Promise<void> {
+    const receiptIds = (await this.getAll())
+      .filter((receipt) => receipt.chatId === chatId)
+      .map((receipt) => receipt.messageId)
+    await this.deleteByMessageIds(receiptIds)
+  }
+
   async clear(): Promise<void> {
     await this.db[PENDING_READ_RECEIPTS_STORE].clear()
   }

@@ -5,6 +5,7 @@ export interface Chat {
   contact: Contact
   lastMessage: string | null
   lastMessageTime: number | null
+  readReceiptsEnabled: boolean
   unreadCount: number
 
   autoScroll: boolean

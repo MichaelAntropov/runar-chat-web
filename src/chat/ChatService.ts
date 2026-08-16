@@ -62,6 +62,11 @@ function enqueueRatchetOperation<T>(operation: () => Promise<T>): Promise<T> {
   return result
 }
 
+async function areReadReceiptsEnabled(chat: Chat): Promise<boolean> {
+  const mode = await useSettingsStore().ensureReadReceiptModeLoaded()
+  return mode === 'ALL' || (mode === 'PER_USER' && chat.readReceiptsEnabled)
+}
+
 function getOrCreateSavedMessagesChat(): Chat | null {
   const userStore = useUserStore()
   const chatStore = useChatsStore()
@@ -251,7 +256,7 @@ export async function queueReadReceipts(chat: Chat, receipts: ReadReceipt[]): Pr
     !principalId ||
     chat.contact.userId === principalId ||
     receipts.length === 0 ||
-    !(await useSettingsStore().ensureReadReceiptsLoaded())
+    !(await areReadReceiptsEnabled(chat))
   ) {
     return
   }
@@ -289,7 +294,8 @@ async function flushPendingReadReceiptsInternal(): Promise<void> {
   const userStore = useUserStore()
   const chatStore = useChatsStore()
   const principalId = userStore.principal?.id
-  if (!principalId || !(await settingsStore.ensureReadReceiptsLoaded())) {
+  const mode = await settingsStore.ensureReadReceiptModeLoaded()
+  if (!principalId || mode === 'NONE') {
     await pendingReadReceiptRepository.clear()
     return
   }
@@ -318,12 +324,18 @@ async function flushPendingReadReceiptsInternal(): Promise<void> {
       )
       continue
     }
+    if (!(await areReadReceiptsEnabled(chat))) {
+      await pendingReadReceiptRepository.deleteByMessageIds(
+        chatReceipts.map((receipt) => receipt.messageId),
+      )
+      continue
+    }
 
     for (let index = 0; index < chatReceipts.length; index += MAX_READ_RECEIPTS_PER_MESSAGE) {
       const batch = chatReceipts.slice(index, index + MAX_READ_RECEIPTS_PER_MESSAGE)
       try {
         const sent = await enqueueRatchetOperation(async () => {
-          if (!(await settingsStore.ensureReadReceiptsLoaded())) return false
+          if (!(await areReadReceiptsEnabled(chat))) return false
 
           const receiptMessage: ReadReceiptMessage = {
             type: 'READ_RECEIPT',
@@ -342,8 +354,10 @@ async function flushPendingReadReceiptsInternal(): Promise<void> {
         })
 
         if (!sent) {
-          await pendingReadReceiptRepository.clear()
-          return
+          await pendingReadReceiptRepository.deleteByMessageIds(
+            chatReceipts.map((receipt) => receipt.messageId),
+          )
+          break
         }
         await pendingReadReceiptRepository.deleteByMessageIds(
           batch.map((receipt) => receipt.messageId),
@@ -551,14 +565,19 @@ async function decryptInboundMessageAndPushToChatInternal(msg: InboundMessage): 
   } else if (isReadReceiptMessage(encodedMessage)) {
     if (
       msg.senderId === userStore.principal.id ||
-      encodedMessage.ultimateReceiverId !== userStore.principal.id ||
-      !(await useSettingsStore().ensureReadReceiptsLoaded())
+      encodedMessage.ultimateReceiverId !== userStore.principal.id
     ) {
       return
     }
 
     const chat = chatStore.chats.find((candidate) => candidate.contact.userId === msg.senderId)
-    if (!chat || chat.contact.userId === userStore.principal.id) return
+    if (
+      !chat ||
+      chat.contact.userId === userStore.principal.id ||
+      !(await areReadReceiptsEnabled(chat))
+    ) {
+      return
+    }
 
     await chatStore.applyReadReceipts(chat, encodedMessage.receipts)
   } else if (isNoOpMessage(encodedMessage)) {

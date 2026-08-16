@@ -5,6 +5,7 @@ import { ref, watch, type Ref } from 'vue'
 import { useContactsStore } from '@/contacts/contactStore'
 import { useDbStore } from '@/db/dbStore'
 import { messageRepository } from '@/db/repositories/MessageRepository'
+import { pendingReadReceiptRepository } from '@/db/repositories/PendingReadReceiptRepository'
 import { CHATS_STORE, CHATS_STORE_KEY } from '@/db/RunarDB'
 import { useUserStore } from '@/user/userStore'
 
@@ -242,8 +243,10 @@ export const useChatsStore = defineStore('chats', () => {
       const principalId = userStore.principal?.id
       if (!principalId) return
 
-      const { updatedMessages, unresolvedReceipts } =
-        await messageRepository.applyDeliveryReceipts(principalId, receipts)
+      const { updatedMessages, unresolvedReceipts } = await messageRepository.applyDeliveryReceipts(
+        principalId,
+        receipts,
+      )
 
       for (const receipt of unresolvedReceipts) {
         bufferDeliveryReceipt(receipt)
@@ -329,6 +332,7 @@ export const useChatsStore = defineStore('chats', () => {
       contact: contact,
       lastMessage: null,
       lastMessageTime: null,
+      readReceiptsEnabled: true,
       unreadCount: 0,
       autoScroll: true,
       scrollPosition: null,
@@ -381,6 +385,8 @@ export const useChatsStore = defineStore('chats', () => {
 
         // Restore references (e.g. re-link contacts)
         for (const chat of restoredChats) {
+          chat.readReceiptsEnabled = chat.readReceiptsEnabled !== false
+
           const [latestMessage] = await messageRepository.getLatestByChatId(chat.id, 1)
           chat.lastMessage = latestMessage?.content ?? null
           chat.lastMessageTime = latestMessage?.createdAt ?? null
@@ -426,6 +432,23 @@ export const useChatsStore = defineStore('chats', () => {
     }
   }, 1000)
 
+  async function updateReadReceiptsEnabled(chatId: string, value: boolean): Promise<void> {
+    const chat = chats.value.find((candidate) => candidate.id === chatId)
+    if (!chat || chat.readReceiptsEnabled === value) return
+
+    const oldValue = chat.readReceiptsEnabled
+    chat.readReceiptsEnabled = value
+
+    try {
+      if (!value) {
+        await pendingReadReceiptRepository.deleteByChatId(chatId)
+      }
+    } catch (error) {
+      chat.readReceiptsEnabled = oldValue
+      throw error
+    }
+  }
+
   // Trigger hydration when DB is unlocked/ready
   watch(
     () => dbStore.dbStatus,
@@ -469,5 +492,6 @@ export const useChatsStore = defineStore('chats', () => {
     applyDeliveryReceipts,
     applyReadReceipts,
     markVisibleMessagesAsRead,
+    updateReadReceiptsEnabled,
   }
 })

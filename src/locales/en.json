@@ -114,7 +114,13 @@
       "nobody": "Nobody",
       "nobody-desc": "Your online status is hidden from everyone",
       "read-receipts": "Read receipts",
-      "read-receipts-desc": "If turned off, you will not send or see new read receipts on this device"
+      "read-receipts-send-all": "Send for all",
+      "read-receipts-send-all-desc": "Send your read receipts and show receipts from every user",
+      "read-receipts-per-user": "Set for each user",
+      "read-receipts-per-user-desc": "Choose separately in each chat whether receipts are sent and shown",
+      "read-receipts-off": "Off",
+      "read-receipts-off-desc": "Do not send or show new read receipts",
+      "read-receipts-update-error": "The read receipt setting could not be saved. Please try again."
     },
     "blocking": {
       "blocked-users": "Blocked users",
@@ -160,6 +166,24 @@
       "sent": "Sent",
       "delivered": "Delivered",
       "read": "Read"
+    },
+    "menu": {
+      "open": "Chat options",
+      "block-user": "Block user",
+      "unblock-user": "Unblock user",
+      "block-status-loading": "Loading block status",
+      "block-status-error": "The block status could not be loaded.",
+      "retry-block-status": "Retry loading block status",
+      "read-receipts-on": "Read receipts are on",
+      "read-receipts-off": "Read receipts are off",
+      "read-receipts-loading": "Loading read receipt settings",
+      "turn-on-read-receipts": "Turn on read receipts",
+      "turn-off-read-receipts": "Turn off read receipts",
+      "controlled-globally": "Controlled globally",
+      "confirm-block-title": "Block user",
+      "confirm-block-message": "Block {username}? You will stop receiving their messages and will not be able to message them until you unblock them.",
+      "update-error": "The change could not be saved. Please try again.",
+      "cancel": "Cancel"
     },
     "blocking": {
       "send-blocked": "You blocked this user. Unblock them in Privacy and Security to send messages."

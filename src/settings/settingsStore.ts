@@ -8,13 +8,14 @@ import { useUserStore } from '@/user/userStore'
 
 import { settingsApi } from './settingsApi'
 import type { OnlineVisibility } from './types/OnlineVisibility'
+import type { ReadReceiptMode } from './types/ReadReceiptMode'
 
 export const useSettingsStore = defineStore('settings', () => {
   const userStore = useUserStore()
   const dbStore = useDbStore()
 
   const onlineVisibility: Ref<OnlineVisibility | null> = ref(null)
-  const readReceiptsEnabled: Ref<boolean | null> = ref(null)
+  const readReceiptMode: Ref<ReadReceiptMode | null> = ref(null)
 
   let fetchPromise: Promise<void> | null = null
   let deviceSettingsPromise: Promise<void> | null = null
@@ -44,26 +45,30 @@ export const useSettingsStore = defineStore('settings', () => {
   async function loadDeviceSettings(): Promise<void> {
     if (deviceSettingsPromise) return deviceSettingsPromise
     if (dbStore.dbStatus !== 'ready') {
-      readReceiptsEnabled.value = false
+      readReceiptMode.value = 'NONE'
       return
     }
 
     deviceSettingsPromise = (async () => {
       try {
         const settings = await deviceSettingsRepository.getSettings()
-        if (settings) {
-          readReceiptsEnabled.value = settings.readReceiptsEnabled
-        } else {
-          await deviceSettingsRepository.saveSettings(true)
-          readReceiptsEnabled.value = true
+        const storedMode = settings?.readReceiptMode
+        const normalizedMode: ReadReceiptMode =
+          storedMode === 'ALL' || storedMode === 'NONE' || storedMode === 'PER_USER'
+            ? storedMode
+            : 'ALL'
+
+        readReceiptMode.value = normalizedMode
+        if (!settings || storedMode !== normalizedMode) {
+          await deviceSettingsRepository.saveSettings(normalizedMode)
         }
 
-        if (!readReceiptsEnabled.value) {
+        if (normalizedMode === 'NONE') {
           await pendingReadReceiptRepository.clear()
         }
       } catch (error) {
         console.error('[settingsStore] Failed to load device settings:', error)
-        readReceiptsEnabled.value = false
+        readReceiptMode.value = 'NONE'
       } finally {
         deviceSettingsPromise = null
       }
@@ -72,27 +77,22 @@ export const useSettingsStore = defineStore('settings', () => {
     return deviceSettingsPromise
   }
 
-  async function ensureReadReceiptsLoaded(): Promise<boolean> {
-    if (readReceiptsEnabled.value === null) {
+  async function ensureReadReceiptModeLoaded(): Promise<ReadReceiptMode> {
+    if (readReceiptMode.value === null) {
       await loadDeviceSettings()
     }
-    return readReceiptsEnabled.value === true
+    return readReceiptMode.value ?? 'NONE'
   }
 
-  async function updateReadReceiptsEnabled(value: boolean): Promise<void> {
+  async function updateReadReceiptMode(value: ReadReceiptMode): Promise<void> {
     if (dbStore.dbStatus !== 'ready') {
       throw new Error('Cannot update read receipts before the local database is ready')
     }
 
-    if (value) {
-      // Never revive receipts that were read while this setting was disabled.
-      await pendingReadReceiptRepository.clear()
-    }
-
     await deviceSettingsRepository.saveSettings(value)
-    readReceiptsEnabled.value = value
+    readReceiptMode.value = value
 
-    if (!value) {
+    if (value === 'NONE') {
       try {
         await pendingReadReceiptRepository.clear()
       } catch (error) {
@@ -120,7 +120,7 @@ export const useSettingsStore = defineStore('settings', () => {
       if (status === 'ready') {
         loadDeviceSettings()
       } else {
-        readReceiptsEnabled.value = null
+        readReceiptMode.value = null
         deviceSettingsPromise = null
       }
     },
@@ -129,11 +129,11 @@ export const useSettingsStore = defineStore('settings', () => {
 
   return {
     onlineVisibility,
-    readReceiptsEnabled,
-    ensureReadReceiptsLoaded,
+    readReceiptMode,
+    ensureReadReceiptModeLoaded,
     fetchSettings,
     loadDeviceSettings,
     updateSettings,
-    updateReadReceiptsEnabled,
+    updateReadReceiptMode,
   }
 })
