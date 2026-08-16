@@ -1,5 +1,8 @@
-export interface OfflineMessagesResponses {
+import type { DeliveryReceiptResponse } from '@/chat/types/receipt/DeliveryReceiptResponse'
+
+export interface ReceiveMessagesResponse {
   messages: Array<OfflineMessageResponse>
+  deliveryReceipts: DeliveryReceiptResponse[]
 }
 
 export interface OfflineMessageResponse {

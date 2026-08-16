@@ -1,5 +1,6 @@
 import { Dexie } from 'dexie'
 
+import type { DeliveryReceipt } from '@/chat/types/receipt/DeliveryReceipt'
 import type { ReadReceipt } from '@/chat/types/receipt/ReadReceipt'
 import { MESSAGES_STORE } from '@/db/RunarDB'
 
@@ -112,6 +113,58 @@ export class MessageRepository {
       await this.db[MESSAGES_STORE].bulkPut(updatedMessages)
     }
     return updatedMessages
+  }
+
+  async applyDeliveryReceipts(
+    senderId: string,
+    receipts: DeliveryReceipt[],
+  ): Promise<{
+    updatedMessages: StoredMessage[]
+    unresolvedReceipts: DeliveryReceipt[]
+  }> {
+    if (receipts.length === 0) {
+      return { updatedMessages: [], unresolvedReceipts: [] }
+    }
+
+    const receiptByMessageId = new Map<string, DeliveryReceipt>()
+    for (const receipt of receipts) {
+      const existing = receiptByMessageId.get(receipt.messageId)
+      if (!existing || receipt.deliveredAt < existing.deliveredAt) {
+        receiptByMessageId.set(receipt.messageId, receipt)
+      }
+    }
+
+    const messages = await this.db[MESSAGES_STORE].where('id')
+      .anyOf([...receiptByMessageId.keys()])
+      .toArray()
+    const messageById = new Map(messages.map((message) => [message.id, message]))
+    const unresolvedReceipts = [...receiptByMessageId.values()].filter(
+      (receipt) => !messageById.has(receipt.messageId),
+    )
+
+    const updatedMessages = messages
+      .map((message): StoredMessage | null => {
+        if (message.senderId !== senderId || message.recipientId === senderId) return null
+
+        const receipt = receiptByMessageId.get(message.id)
+        if (!receipt) return null
+
+        const currentDeliveredAt = message.deliveredAt ?? null
+        const deliveredAt =
+          currentDeliveredAt === null
+            ? receipt.deliveredAt
+            : Math.min(currentDeliveredAt, receipt.deliveredAt)
+        if (deliveredAt === currentDeliveredAt) return null
+
+        return { ...message, deliveredAt }
+      })
+      .filter((message): message is StoredMessage => message !== null)
+
+    if (updatedMessages.length > 0) {
+      await this.db[MESSAGES_STORE].bulkPut(updatedMessages)
+    }
+
+    return { updatedMessages, unresolvedReceipts }
   }
 }
 

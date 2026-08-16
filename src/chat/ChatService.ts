@@ -124,6 +124,7 @@ async function sendMessageInCurrentChatInternal(content: string): Promise<void> 
       recipientId: userStore.principal.id,
       createdAt,
       content,
+      deliveredAt: null,
       readAt: createdAt,
     }
     await chatStore.addMessageToChat(chat, localMessage)
@@ -146,6 +147,7 @@ async function sendMessageInCurrentChatInternal(content: string): Promise<void> 
     recipientId: chat.contact.userId,
     createdAt: parseUtcTimestamp(response.createdAt),
     content,
+    deliveredAt: null,
     readAt: null,
   }
   await chatStore.addMessageToChat(chat, newStoredMessage)
@@ -360,23 +362,25 @@ async function flushPendingReadReceiptsInternal(): Promise<void> {
 }
 
 /**
- * Fetches all offline messages from the server, decrypts them, and adds them to their respective chats.
+ * Fetches queued delivery receipts and messages, then reconciles or decrypts them.
  */
-export async function fetchAndDecryptOfflineMessages() {
+export async function fetchAndProcessOfflineEvents() {
   const deviceStore = useDeviceStore()
   if (!deviceStore.deviceId) {
-    console.warn('fetchAndDecryptOfflineMessages() - No device setup!')
+    console.warn('fetchAndProcessOfflineEvents() - No device setup!')
     return
   }
 
-  console.log('fetchAndDecryptOfflineMessages() - Fetching and decrypting offline messages...')
+  console.log('fetchAndProcessOfflineEvents() - Fetching queued events...')
 
-  const offlineMessages = await chatApi.postReceiveOfflineMessages()
-  offlineMessages.sort(
+  const { messages, deliveryReceipts } = await chatApi.postReceiveMessages()
+  await useChatsStore().applyDeliveryReceipts(deliveryReceipts)
+
+  messages.sort(
     (msgA, msgB) => parseUtcTimestamp(msgA.createdAt) - parseUtcTimestamp(msgB.createdAt),
   )
 
-  for (const msg of offlineMessages) {
+  for (const msg of messages) {
     console.log(`decryptInboundMessageAndPushToChat() - ${JSON.stringify(msg)}`)
     await decryptInboundMessageAndPushToChat(msg)
   }
@@ -539,6 +543,7 @@ async function decryptInboundMessageAndPushToChatInternal(msg: InboundMessage): 
         msg.senderId === userStore.principal.id ? actualChatUserId : userStore.principal.id,
       createdAt,
       content: encodedMessage.content,
+      deliveredAt: null,
       readAt: actualChatUserId === userStore.principal.id ? createdAt : null,
     }
 

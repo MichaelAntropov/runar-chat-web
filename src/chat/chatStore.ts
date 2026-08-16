@@ -12,10 +12,12 @@ import type { Contact } from '../contacts/types/Contact'
 
 import type { Chat } from './types/chat/Chat'
 import type { StoredMessage } from './types/chat/StoredMessage'
+import type { DeliveryReceipt } from './types/receipt/DeliveryReceipt'
 import type { ReadReceipt } from './types/receipt/ReadReceipt'
 
 export const MESSAGE_LOAD_COUNT = 15
 export const MESSAGE_LOAD_STEP = 5
+const MAX_PENDING_DELIVERY_RECEIPTS = 1000
 
 interface PersistedChatState {
   chats?: Chat[]
@@ -32,6 +34,17 @@ export const useChatsStore = defineStore('chats', () => {
   const currentChat: Ref<Chat | null> = ref(null)
 
   const currentChatMessages: Ref<Array<StoredMessage>> = ref([])
+  const pendingDeliveryReceipts = new Map<string, DeliveryReceipt>()
+  let deliveryReceiptQueue: Promise<void> = Promise.resolve()
+
+  function enqueueDeliveryReceiptOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = deliveryReceiptQueue.then(operation, operation)
+    deliveryReceiptQueue = result.then(
+      () => undefined,
+      () => undefined,
+    )
+    return result
+  }
 
   async function loadMessagesFromDB() {
     const chat = currentChat.value
@@ -210,6 +223,70 @@ export const useChatsStore = defineStore('chats', () => {
     }
   }
 
+  function bufferDeliveryReceipt(receipt: DeliveryReceipt): void {
+    const existing = pendingDeliveryReceipts.get(receipt.messageId)
+    if (existing && existing.deliveredAt <= receipt.deliveredAt) return
+
+    if (!existing && pendingDeliveryReceipts.size >= MAX_PENDING_DELIVERY_RECEIPTS) {
+      const oldestMessageId = pendingDeliveryReceipts.keys().next().value
+      if (oldestMessageId) pendingDeliveryReceipts.delete(oldestMessageId)
+    }
+
+    pendingDeliveryReceipts.set(receipt.messageId, receipt)
+  }
+
+  async function applyDeliveryReceipts(receipts: DeliveryReceipt[]): Promise<void> {
+    if (receipts.length === 0) return
+
+    return enqueueDeliveryReceiptOperation(async () => {
+      const principalId = userStore.principal?.id
+      if (!principalId) return
+
+      const { updatedMessages, unresolvedReceipts } =
+        await messageRepository.applyDeliveryReceipts(principalId, receipts)
+
+      for (const receipt of unresolvedReceipts) {
+        bufferDeliveryReceipt(receipt)
+      }
+
+      const deliveredAtById = new Map(
+        updatedMessages.map((message) => [message.id, message.deliveredAt]),
+      )
+      for (const message of currentChatMessages.value) {
+        const deliveredAt = deliveredAtById.get(message.id)
+        if (deliveredAt !== undefined) {
+          message.deliveredAt = deliveredAt
+        }
+      }
+    })
+  }
+
+  async function applyPendingDeliveryReceipt(message: StoredMessage): Promise<void> {
+    const principalId = userStore.principal?.id
+    const receipt = pendingDeliveryReceipts.get(message.id)
+    if (!principalId || !receipt) return
+
+    return enqueueDeliveryReceiptOperation(async () => {
+      try {
+        const { updatedMessages, unresolvedReceipts } =
+          await messageRepository.applyDeliveryReceipts(principalId, [receipt])
+        if (unresolvedReceipts.length === 0) {
+          pendingDeliveryReceipts.delete(message.id)
+        }
+
+        const updatedMessage = updatedMessages.find((candidate) => candidate.id === message.id)
+        if (updatedMessage) {
+          message.deliveredAt = updatedMessage.deliveredAt
+        }
+      } catch (error) {
+        console.error(
+          `Could not apply pending delivery receipt for message id=${message.id}:`,
+          error,
+        )
+      }
+    })
+  }
+
   async function addMessageToChat(chat: Chat, message: StoredMessage): Promise<void> {
     try {
       const isSelfMessage = message.senderId === message.recipientId
@@ -218,6 +295,7 @@ export const useChatsStore = defineStore('chats', () => {
       }
 
       await messageRepository.saveMessage(message)
+      await applyPendingDeliveryReceipt(message)
 
       chat.lastMessage = message.content
       chat.lastMessageTime = message.createdAt
@@ -357,6 +435,7 @@ export const useChatsStore = defineStore('chats', () => {
       } else {
         // If DB locks or resets, mark as not hydrated to stop saving
         isHydrated.value = false
+        pendingDeliveryReceipts.clear()
         chats.value = []
         closeCurrentChat()
       }
@@ -387,6 +466,7 @@ export const useChatsStore = defineStore('chats', () => {
     loadPreviousMessages,
     loadNextMessages,
     addMessageToChat,
+    applyDeliveryReceipts,
     applyReadReceipts,
     markVisibleMessagesAsRead,
   }

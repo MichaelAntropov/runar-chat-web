@@ -3,20 +3,26 @@ import { ref, watch, type Ref } from 'vue'
 
 import {
   decryptInboundMessageAndPushToChat,
-  fetchAndDecryptOfflineMessages,
+  fetchAndProcessOfflineEvents,
   flushPendingReadReceipts,
 } from '@/chat/ChatService'
+import { useChatsStore } from '@/chat/chatStore'
 import {
   inboundMessageFromWebsocketMessage,
   type InboundMessage,
 } from '@/chat/types/message/InboundMessage'
+import { deliveryReceiptFromResponse } from '@/chat/types/receipt/DeliveryReceipt'
 import { useDbStore, type DbStatus } from '@/db/dbStore'
 import { useDeviceStore, type DeviceRegistrationStatus } from '@/device/deviceStore'
 import { usePresenceStore } from '@/presence/presenceStore'
 import { useUserStore } from '@/user/userStore'
 
 import { WebsocketConnection, type WebSocketConnectionStatus } from './WebsocketConnection'
-import type { MessageWsMessage, PresenceWsMessage } from './wsEventTypes'
+import type {
+  DeliveryReceiptWsMessage,
+  MessageWsMessage,
+  PresenceWsMessage,
+} from './wsEventTypes'
 
 export const useConnectionStore = defineStore('connection-store', () => {
   const userStore = useUserStore()
@@ -29,7 +35,7 @@ export const useConnectionStore = defineStore('connection-store', () => {
     onStatusChange: (status: WebSocketConnectionStatus) => {
       webSocketConnectionStatus.value = status
       if (status === 'connected') {
-        void loadOfflineMessages()
+        void loadQueuedEvents()
           .then(() => flushPendingReadReceipts())
           .catch((error) => {
             console.error('[connection-store] - Failed to process queued messages:', error)
@@ -55,11 +61,27 @@ export const useConnectionStore = defineStore('connection-store', () => {
         return
       }
 
+      if (data.type === 'DELIVERY_RECEIPT') {
+        try {
+          const msg = data as unknown as DeliveryReceiptWsMessage
+          const receipt = deliveryReceiptFromResponse(msg.payload)
+          const chatsStore = useChatsStore()
+          void chatsStore.applyDeliveryReceipts([receipt]).catch((error) => {
+            const details =
+              error instanceof Error ? (error.stack ?? `${error.name}: ${error.message}`) : error
+            console.error('[connection-store] - Failed to process delivery receipt:', details)
+          })
+        } catch (error) {
+          console.error('[connection-store] - Invalid delivery receipt received:', error)
+        }
+        return
+      }
+
       console.error('[connection-store] - Unknown message type received:', JSON.stringify(data))
     },
   })
 
-  async function loadOfflineMessages() {
+  async function loadQueuedEvents() {
     const { registrationStatus, deviceId } = deviceStore
     const { isAuthenticated, authStatus } = userStore
 
@@ -69,7 +91,7 @@ export const useConnectionStore = defineStore('connection-store', () => {
       registrationStatus === 'registered' &&
       deviceId
     ) {
-      await fetchAndDecryptOfflineMessages()
+      await fetchAndProcessOfflineEvents()
     }
   }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, type ComputedRef } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import type { StoredMessage } from '@/chat/types/chat/StoredMessage'
 import { useUserStore } from '@/user/userStore'
@@ -11,10 +12,17 @@ interface Props {
 }
 const props = defineProps<Props>()
 
+const { t } = useI18n()
 const userStore = useUserStore()
 
 const isOutgoingMessage = computed(() => props.message.senderId === userStore.principal?.id)
 const isSavedMessage = computed(() => props.message.senderId === props.message.recipientId)
+const messageStatus = computed<'delivered' | 'read' | 'sent' | null>(() => {
+  if (!isOutgoingMessage.value || isSavedMessage.value) return null
+  if (props.message.readAt !== null) return 'read'
+  if (props.message.deliveredAt != null) return 'delivered'
+  return 'sent'
+})
 
 const msgBubbleSideClass: ComputedRef<string> = computed(() => {
   if (props.message.senderId === userStore.principal?.id || !props.message.senderId) {
@@ -53,13 +61,25 @@ const formatDateFromTimestamp = (timestamp: number | undefined): string => {
     </p>
     <div class="d-flex align-items-center justify-content-end">
       <small class="text-muted">{{ formatDateFromTimestamp(props.message.createdAt) }}</small>
-      <template v-if="isOutgoingMessage">
+      <template v-if="messageStatus">
         <i
-          v-if="!isSavedMessage && message.readAt !== null"
+          v-if="messageStatus === 'read'"
           class="bi bi-check-all text-info ms-1"
-          aria-label="Read"
+          :aria-label="t('chat.message-status.read')"
+          :title="t('chat.message-status.read')"
         ></i>
-        <i v-else-if="message.id" class="bi bi-check text-subtle ms-1" aria-label="Sent"></i>
+        <i
+          v-else-if="messageStatus === 'delivered'"
+          class="bi bi-check-all text-subtle ms-1"
+          :aria-label="t('chat.message-status.delivered')"
+          :title="t('chat.message-status.delivered')"
+        ></i>
+        <i
+          v-else
+          class="bi bi-check text-subtle ms-1"
+          :aria-label="t('chat.message-status.sent')"
+          :title="t('chat.message-status.sent')"
+        ></i>
       </template>
     </div>
   </div>

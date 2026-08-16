@@ -18,10 +18,12 @@ import type {
 } from '../types/key-bundle/InitKeyBundleResponse'
 import type { MessagePayload } from '../types/message/MessagePayload'
 import { MessageReceiverBlockedError } from '../types/message/MessageReceiverBlockedError'
-import type { OfflineMessagesResponses } from '../types/message/MessagesResponse'
+import type { ReceiveMessagesResponse } from '../types/message/MessagesResponse'
 import { MissingDevicesError } from '../types/message/MissingDevicesError'
 import type { OfflineMessage } from '../types/message/OfflineMessage'
+import type { ReceivedMessages } from '../types/message/ReceivedMessages'
 import type { SendMessageResponse } from '../types/message/SendMessageResponse'
+import { deliveryReceiptFromResponse } from '../types/receipt/DeliveryReceipt'
 
 export const chatApi = {
   async getIdentityKeys(userId: string): Promise<IdentityKey[]> {
@@ -111,10 +113,10 @@ export const chatApi = {
     }
   },
 
-  async postReceiveOfflineMessages(): Promise<OfflineMessage[]> {
-    const result = await http.post<OfflineMessagesResponses>(`/api/v1/messages/receive`)
+  async postReceiveMessages(): Promise<ReceivedMessages> {
+    const result = await http.post<ReceiveMessagesResponse>(`/api/v1/messages/receive`)
 
-    return result.data.messages.map(
+    const messages = result.data.messages.map(
       (msg): OfflineMessage => ({
         messageId: msg.messageId,
         createdAt: msg.createdAt,
@@ -129,5 +131,10 @@ export const chatApi = {
         encryptedHeader: msg.encryptedHeader ? base64ToUint8Array(msg.encryptedHeader) : null,
       }),
     )
+
+    return {
+      messages,
+      deliveryReceipts: result.data.deliveryReceipts.map(deliveryReceiptFromResponse),
+    }
   },
 }

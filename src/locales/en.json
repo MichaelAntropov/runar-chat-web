@@ -156,6 +156,11 @@
       "today": "Today",
       "yesterday": "Yesterday"
     },
+    "message-status": {
+      "sent": "Sent",
+      "delivered": "Delivered",
+      "read": "Read"
+    },
     "blocking": {
       "send-blocked": "You blocked this user. Unblock them in Privacy and Security to send messages."
     }
