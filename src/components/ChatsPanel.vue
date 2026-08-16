@@ -36,43 +36,44 @@ function openSavedMessages() {
       >
         <i class="bi bi-arrow-left menu-toggle__icon" aria-hidden="true"></i>
       </button>
-      <button
-        v-else
-        type="button"
-        class="btn link-body-emphasis me-2 menu-toggle"
-        data-bs-toggle="dropdown"
-        aria-label="Open menu"
-      >
-        <i class="bi bi-list menu-toggle__icon"></i>
-      </button>
-      <ul class="dropdown-menu text-small shadow" style="">
-        <li>
-          <button class="dropdown-item" @click="emit('navigate', 'my-profile')">
-            <i class="bi bi-person me-2"></i>{{ t('sidebar.menu.my-profile') }}
-          </button>
-        </li>
-        <li>
-          <button class="dropdown-item" @click="openSavedMessages">
-            <i class="bi bi-save2 me-2"></i>{{ t('sidebar.menu.saved-messages') }}
-          </button>
-        </li>
-        <li>
-          <button class="dropdown-item" @click="emit('navigate', 'settings')">
-            <i class="bi bi-gear me-2"></i>{{ t('sidebar.menu.settings') }}
-          </button>
-        </li>
-        <li>
-          <button class="dropdown-item" @click="emit('navigate', 'theme')">
-            <i class="bi bi-brightness-high me-2"></i>{{ t('sidebar.menu.theme') }}
-          </button>
-        </li>
-        <li><hr class="dropdown-divider" /></li>
-        <li>
-          <button class="dropdown-item" @click.prevent="userStore.signOut">
-            <i class="bi bi-box-arrow-right me-2"></i>{{ t('sidebar.menu.log-out') }}
-          </button>
-        </li>
-      </ul>
+      <div v-else class="dropdown">
+        <button
+          type="button"
+          class="btn link-body-emphasis me-2 menu-toggle"
+          data-bs-toggle="dropdown"
+          aria-label="Open menu"
+        >
+          <i class="bi bi-list menu-toggle__icon"></i>
+        </button>
+        <ul class="dropdown-menu text-small shadow">
+          <li>
+            <button class="dropdown-item" @click="emit('navigate', 'my-profile')">
+              <i class="bi bi-person me-2"></i>{{ t('sidebar.menu.my-profile') }}
+            </button>
+          </li>
+          <li>
+            <button class="dropdown-item" @click="openSavedMessages">
+              <i class="bi bi-save2 me-2"></i>{{ t('sidebar.menu.saved-messages') }}
+            </button>
+          </li>
+          <li>
+            <button class="dropdown-item" @click="emit('navigate', 'settings')">
+              <i class="bi bi-gear me-2"></i>{{ t('sidebar.menu.settings') }}
+            </button>
+          </li>
+          <li>
+            <button class="dropdown-item" @click="emit('navigate', 'theme')">
+              <i class="bi bi-brightness-high me-2"></i>{{ t('sidebar.menu.theme') }}
+            </button>
+          </li>
+          <li><hr class="dropdown-divider" /></li>
+          <li>
+            <button class="dropdown-item" @click.prevent="userStore.signOut">
+              <i class="bi bi-box-arrow-right me-2"></i>{{ t('sidebar.menu.log-out') }}
+            </button>
+          </li>
+        </ul>
+      </div>
       <SearchUser v-model:active="searchActive" @open-chat="emit('open-chat')" />
     </div>
     <div
