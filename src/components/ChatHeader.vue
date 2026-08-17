@@ -19,9 +19,15 @@ import type { PresenceUpdate } from '@/presence/types/PresenceUpdate'
 import { useSettingsStore } from '@/settings/settingsStore'
 import { useUserStore } from '@/user/userStore'
 
+import E2eeSafetyNumberModal from './E2eeSafetyNumberModal.vue'
+
 interface MenuUser {
   id: string
   username: string
+}
+
+interface SafetyNumberModalExposed {
+  open: () => Promise<void>
 }
 
 defineProps<{ isMobile: boolean }>()
@@ -37,6 +43,7 @@ const { t } = useI18n()
 const reactiveNow: Ref<number> = ref(Date.now())
 const menuToggleRef = useTemplateRef<HTMLElement>('menu-toggle')
 const confirmationModalRef = useTemplateRef<HTMLElement>('confirmation-modal')
+const safetyNumberModalRef = useTemplateRef<SafetyNumberModalExposed>('safety-number-modal')
 const menuDropdown: Ref<Dropdown | null> = ref(null)
 const confirmationModal: Ref<Modal | null> = ref(null)
 const pendingBlockUser: Ref<MenuUser | null> = ref(null)
@@ -63,7 +70,6 @@ onMounted(() => {
       keyboard: false,
     })
   }
-
   void settingsStore.ensureReadReceiptModeLoaded()
 })
 
@@ -100,7 +106,6 @@ const readReceiptMenuLabel = computed(() => {
     ? t('chat.menu.turn-off-read-receipts')
     : t('chat.menu.turn-on-read-receipts')
 })
-
 const presence: ComputedRef<PresenceUpdate | null> = computed(() => {
   const chat = currentChat.value
   return chat ? (presenceStore.presenceMap.get(chat.contact.userId) ?? null) : null
@@ -230,6 +235,11 @@ async function toggleCurrentChatReadReceipts(): Promise<void> {
     isUpdatingReadReceipts.value = false
   }
 }
+
+function openSafetyNumber(): void {
+  hideMenu()
+  void safetyNumberModalRef.value?.open()
+}
 </script>
 
 <template>
@@ -273,6 +283,17 @@ async function toggleCurrentChatReadReceipts(): Promise<void> {
         <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
       </button>
       <div class="dropdown-menu dropdown-menu-end privacy-menu shadow">
+        <button
+          type="button"
+          class="dropdown-item d-flex align-items-center gap-2"
+          @click="openSafetyNumber"
+        >
+          <i class="bi bi-shield-lock" aria-hidden="true"></i>
+          <span>{{ t('chat.menu.e2ee-safety-number') }}</span>
+        </button>
+
+        <div class="dropdown-divider"></div>
+
         <button
           type="button"
           class="dropdown-item d-flex align-items-center gap-2"
@@ -340,6 +361,13 @@ async function toggleCurrentChatReadReceipts(): Promise<void> {
       </div>
     </div>
   </div>
+
+  <E2eeSafetyNumberModal
+    v-if="currentChat && !isSavedMessages"
+    ref="safety-number-modal"
+    :contact-user-id="currentChat.contact.userId"
+    :contact-username="currentChat.contact.username"
+  />
 
   <Teleport to="body">
     <div

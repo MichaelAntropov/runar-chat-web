@@ -169,6 +169,7 @@
     },
     "menu": {
       "open": "Chat options",
+      "e2ee-safety-number": "E2EE Safety Number",
       "block-user": "Block user",
       "unblock-user": "Unblock user",
       "block-status-loading": "Loading block status",
@@ -184,6 +185,21 @@
       "confirm-block-message": "Block {username}? You will stop receiving their messages and will not be able to message them until you unblock them.",
       "update-error": "The change could not be saved. Please try again.",
       "cancel": "Cancel"
+    },
+    "safety-number": {
+      "title": "E2EE Safety Number",
+      "description": "Compare these 60 digits with {username} through another trusted channel. If they match, both of you received the same account identity keys.",
+      "key-change-warning": "This number changes when either account's registered identity keys change.",
+      "review-devices": "Review the included devices. An unexpected device may have access to messages and should be investigated before you trust this number.",
+      "your-devices": "Your devices",
+      "contact-devices": "Devices of {username}",
+      "device": "Device {number}",
+      "this-device": "This device",
+      "key-fingerprint": "Key fingerprint",
+      "loading": "Generating Safety Number...",
+      "error": "The Safety Number could not be generated. Please try again.",
+      "retry": "Try again",
+      "close": "Close"
     },
     "blocking": {
       "send-blocked": "You blocked this user. Unblock them in Privacy and Security to send messages."

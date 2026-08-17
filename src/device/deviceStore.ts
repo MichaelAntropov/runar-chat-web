@@ -291,6 +291,7 @@ export const useDeviceStore = defineStore('device', () => {
     deviceId,
     registrationStatus,
     identityX25519: computed(() => identityX25519.value),
+    identityEd25519: computed(() => identityEd25519.value),
     preKey: computed(() => signedPreKey.value),
 
     // Getters
