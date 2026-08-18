@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { sessionsApi } from '@/auth/api/sessionsApi'
-import { useDeviceStore } from '@/device/deviceStore'
-import type { DeviceSession } from '@/auth/types/DeviceSessions'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+
+import { sessionsApi } from '@/auth/api/sessionsApi'
+import type { DeviceSession } from '@/auth/types/DeviceSessions'
+import { useDeviceStore } from '@/device/deviceStore'
+
+import RenameDeviceModal from './RenameDeviceModal.vue'
 
 const { t } = useI18n()
 
@@ -11,8 +14,14 @@ const deviceStore = useDeviceStore()
 
 const sessions = ref<DeviceSession[]>([])
 const isLoading = ref(true)
+const selectedDevice = ref<DeviceSession | null>(null)
+const isRenameModalOpen = ref(false)
 
-onMounted(async () => {
+onMounted(() => {
+  void loadSessions()
+})
+
+async function loadSessions() {
   try {
     const response = await sessionsApi.getDeviceSessions()
     sessions.value = response.deviceSessions
@@ -21,7 +30,7 @@ onMounted(async () => {
   } finally {
     isLoading.value = false
   }
-})
+}
 
 const currentDevice = computed(() =>
   sessions.value.find((s) => s.deviceId === deviceStore.deviceId),
@@ -30,6 +39,21 @@ const currentDevice = computed(() =>
 const otherDevices = computed(() =>
   sessions.value.filter((s) => s.deviceId !== deviceStore.deviceId),
 )
+
+function openRenameModal(device: DeviceSession) {
+  selectedDevice.value = device
+  isRenameModalOpen.value = true
+}
+
+function updateRenameModal(open: boolean) {
+  isRenameModalOpen.value = open
+  if (!open) selectedDevice.value = null
+}
+
+function handleDeviceRenamed(deviceId: string, deviceName: string) {
+  const device = sessions.value.find((session) => session.deviceId === deviceId)
+  if (device) device.deviceName = deviceName
+}
 
 // Helper to format dates, handles null values and forces UTC parsing
 const formatDate = (dateString: string | null) => {
@@ -53,7 +77,7 @@ const formatDate = (dateString: string | null) => {
 </script>
 
 <template>
-  <div class="d-flex flex-column">
+  <div class="devices-settings-panel d-flex flex-column w-100 h-100 flex-shrink-0">
     <p class="m-2 p-3 pb-0 pt-0 fs-6 fw-medium">{{ t('settings.devices.this-device') }}</p>
 
     <div v-if="currentDevice" class="card m-2">
@@ -83,10 +107,22 @@ const formatDate = (dateString: string | null) => {
               }}</small>
             </div>
           </div>
-          <div class="d-flex flex-shrink-0">
-            <button class="btn btn-more">
+          <div class="dropdown d-flex flex-shrink-0">
+            <button type="button" class="btn btn-more" data-bs-toggle="dropdown">
               <i class="bi bi-three-dots-vertical btn-more__icon"></i>
             </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li>
+                <button
+                  type="button"
+                  class="dropdown-item"
+                  @click="currentDevice && openRenameModal(currentDevice)"
+                >
+                  <i class="bi bi-pencil me-2"></i>
+                  {{ t('settings.devices.rename') }}
+                </button>
+              </li>
+            </ul>
           </div>
         </div>
       </div>
@@ -131,15 +167,30 @@ const formatDate = (dateString: string | null) => {
                 <small class="m-0 text-body-secondary">{{ formatDate(device.lastActiveAt) }}</small>
               </div>
             </div>
-            <div class="d-flex flex-shrink-0">
-              <button class="btn btn-more">
+            <div class="dropdown d-flex flex-shrink-0">
+              <button type="button" class="btn btn-more" data-bs-toggle="dropdown">
                 <i class="bi bi-three-dots-vertical btn-more__icon"></i>
               </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                  <button type="button" class="dropdown-item" @click="openRenameModal(device)">
+                    <i class="bi bi-pencil me-2"></i>
+                    {{ t('settings.devices.rename') }}
+                  </button>
+                </li>
+              </ul>
             </div>
           </div>
         </div>
       </div>
     </template>
+
+    <RenameDeviceModal
+      :device="selectedDevice"
+      :open="isRenameModalOpen"
+      @update:open="updateRenameModal"
+      @renamed="handleDeviceRenamed"
+    />
   </div>
 </template>
 
