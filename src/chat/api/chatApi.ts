@@ -16,10 +16,10 @@ import type {
   InitKeyBundleResponse,
   MultiUserInitKeyBundleResponse,
 } from '../types/key-bundle/InitKeyBundleResponse'
-import type { MessagePayload } from '../types/message/MessagePayload'
+import { DeviceSetMismatchError } from '../types/message/DeviceSetMismatchError'
 import { MessageReceiverBlockedError } from '../types/message/MessageReceiverBlockedError'
+import type { MessagePayload } from '../types/message/MessagePayload'
 import type { ReceiveMessagesResponse } from '../types/message/MessagesResponse'
-import { MissingDevicesError } from '../types/message/MissingDevicesError'
 import type { OfflineMessage } from '../types/message/OfflineMessage'
 import type { ReceivedMessages } from '../types/message/ReceivedMessages'
 import type { SendMessageResponse } from '../types/message/SendMessageResponse'
@@ -94,10 +94,13 @@ export const chatApi = {
         const errorResponse = error.response.data as ApiErrorResponse
 
         const missingDeviceError = errorResponse.errors.find((e) => e.code === 'MISSING_DEVICES')
+        const invalidDeviceError = errorResponse.errors.find((e) => e.code === 'INVALID_DEVICES')
 
-        if (missingDeviceError) {
-          const deviceIds = (missingDeviceError.data ?? {}) as Record<string, string[]>
-          throw new MissingDevicesError(deviceIds)
+        if (missingDeviceError || invalidDeviceError) {
+          throw new DeviceSetMismatchError(
+            parseDeviceIds(missingDeviceError?.data),
+            parseDeviceIds(invalidDeviceError?.data),
+          )
         }
 
         const receiverBlockedError = errorResponse.errors.find(
@@ -137,4 +140,21 @@ export const chatApi = {
       deliveryReceipts: result.data.deliveryReceipts.map(deliveryReceiptFromResponse),
     }
   },
+}
+
+function parseDeviceIds(data: unknown): Record<string, string[]> {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return {}
+
+  return Object.fromEntries(
+    Object.entries(data).flatMap(([userId, deviceIds]) => {
+      if (!Array.isArray(deviceIds)) return []
+
+      const validDeviceIds = [
+        ...new Set(
+          deviceIds.filter((deviceId): deviceId is string => typeof deviceId === 'string'),
+        ),
+      ]
+      return validDeviceIds.length > 0 ? [[userId, validDeviceIds]] : []
+    }),
+  )
 }

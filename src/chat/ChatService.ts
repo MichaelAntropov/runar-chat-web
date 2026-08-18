@@ -39,10 +39,10 @@ import type { ReadReceiptMessage } from './types/chat/ReadReceiptMessage'
 import type { TextMessage } from './types/chat/TextMessage'
 import type { IdentityKey } from './types/identity-key/IdentityKey'
 import type { InitDeviceKeyBundle, InitKeyBundle } from './types/key-bundle/InitKeyBundleResponse'
+import { DeviceSetMismatchError } from './types/message/DeviceSetMismatchError'
 import type { InboundMessage } from './types/message/InboundMessage'
 import { MessageReceiverBlockedError } from './types/message/MessageReceiverBlockedError'
 import type { DeviceMessagePayload, MessagePayload } from './types/message/MessagePayload'
-import { MissingDevicesError } from './types/message/MissingDevicesError'
 import type { ReadReceipt } from './types/receipt/ReadReceipt'
 
 const MAX_READ_RECEIPTS_PER_MESSAGE = 100
@@ -231,20 +231,29 @@ async function sendEncryptedMessage(
   try {
     return await chatApi.postSendMessagePayload(messagePayload)
   } catch (error) {
-    if (!(error instanceof MissingDevicesError) || retryCount >= 2) throw error
+    if (!(error instanceof DeviceSetMismatchError) || retryCount >= 2) throw error
 
-    console.warn('sendEncryptedMessage() - Missing devices:', error.deviceIds)
-    const keyBundles: Map<string, InitDeviceKeyBundle[]> = await chatApi.getKeyBundles(
-      error.deviceIds,
-    )
+    console.warn('sendEncryptedMessage() - Device set mismatch:', {
+      missingDeviceIds: error.missingDeviceIds,
+      invalidDeviceIds: error.invalidDeviceIds,
+    })
+
+    const deletedCount = await chatStateRepository.deleteByUserAndDeviceIds(error.invalidDeviceIds)
     let establishedCount = 0
-    for (const [userId, bundles] of keyBundles.entries()) {
-      for (const bundle of bundles) {
-        await establishChatStateForKeyBundle(userId, bundle)
-        establishedCount++
+
+    if (Object.keys(error.missingDeviceIds).length > 0) {
+      const keyBundles: Map<string, InitDeviceKeyBundle[]> = await chatApi.getKeyBundles(
+        error.missingDeviceIds,
+      )
+      for (const [userId, bundles] of keyBundles.entries()) {
+        for (const bundle of bundles) {
+          await establishChatStateForKeyBundle(userId, bundle)
+          establishedCount++
+        }
       }
     }
-    if (establishedCount === 0) throw error
+
+    if (deletedCount === 0 && establishedCount === 0) throw error
 
     return sendEncryptedMessage(chat, messageForState, retryCount + 1)
   }
