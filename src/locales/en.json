@@ -162,7 +162,15 @@
       "last-connection-at": "Last connection at:",
       "not-found": "Not found",
       "other-devices": "Other devices:",
-      "no-other": "No other devices"
+      "no-other": "No other devices",
+      "remove": "Remove device",
+      "remove-title": "Remove device",
+      "remove-confirm": "Remove {device}? This device will no longer be able to access your account.",
+      "remove-too-soon": "This device can be removed after it has been registered for 24 hours.",
+      "remove-success": "The device was removed.",
+      "remove-unavailable": "This device is no longer available.",
+      "remove-not-allowed": "This device cannot be removed.",
+      "remove-error": "The device could not be removed. Please try again."
     }
   },
   "device-recovery": {

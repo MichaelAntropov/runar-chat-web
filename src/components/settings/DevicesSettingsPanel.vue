@@ -1,27 +1,47 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { sessionsApi } from '@/auth/api/sessionsApi'
 import type { DeviceSession } from '@/auth/types/DeviceSessions'
 import { useDeviceStore } from '@/device/deviceStore'
+import { useUserStore } from '@/user/userStore'
 
+import RemoveDeviceModal from './RemoveDeviceModal.vue'
 import RenameDeviceModal from './RenameDeviceModal.vue'
 
 const { t } = useI18n()
 
 const deviceStore = useDeviceStore()
+const userStore = useUserStore()
 
 const sessions = ref<DeviceSession[]>([])
 const isLoading = ref(true)
 const selectedDevice = ref<DeviceSession | null>(null)
 const isRenameModalOpen = ref(false)
+const isRemoveModalOpen = ref(false)
+const deviceActionNoticeKey = ref<string | null>(null)
+const currentTime = ref(Date.now())
+
+const DEVICE_REMOVAL_MINIMUM_AGE_MS = 24 * 60 * 60 * 1000
+let eligibilityTimer: number | undefined
 
 onMounted(() => {
   void loadSessions()
+  eligibilityTimer = window.setInterval(() => {
+    currentTime.value = Date.now()
+  }, 30_000)
+})
+
+onUnmounted(() => {
+  if (eligibilityTimer !== undefined) {
+    window.clearInterval(eligibilityTimer)
+  }
 })
 
 async function loadSessions() {
+  isLoading.value = true
+
   try {
     const response = await sessionsApi.getDeviceSessions()
     sessions.value = response.deviceSessions
@@ -41,6 +61,7 @@ const otherDevices = computed(() =>
 )
 
 function openRenameModal(device: DeviceSession) {
+  deviceActionNoticeKey.value = null
   selectedDevice.value = device
   isRenameModalOpen.value = true
 }
@@ -53,6 +74,55 @@ function updateRenameModal(open: boolean) {
 function handleDeviceRenamed(deviceId: string, deviceName: string) {
   const device = sessions.value.find((session) => session.deviceId === deviceId)
   if (device) device.deviceName = deviceName
+}
+
+function openRemoveModal(device: DeviceSession) {
+  deviceActionNoticeKey.value = null
+  selectedDevice.value = device
+  isRemoveModalOpen.value = true
+}
+
+function updateRemoveModal(open: boolean) {
+  isRemoveModalOpen.value = open
+  if (!open) selectedDevice.value = null
+}
+
+function handleDeviceRemoved(deviceId: string) {
+  sessions.value = sessions.value.filter((session) => session.deviceId !== deviceId)
+  deviceActionNoticeKey.value = 'settings.devices.remove-success'
+  updateRemoveModal(false)
+}
+
+async function handleDeviceUnavailable() {
+  await loadSessions()
+  deviceActionNoticeKey.value = 'settings.devices.remove-unavailable'
+  updateRemoveModal(false)
+}
+
+function handleUnauthorized() {
+  updateRemoveModal(false)
+  userStore.clearLocalAuthState()
+}
+
+function parseSessionDate(dateString: string | null): Date | null {
+  if (!dateString) return null
+
+  const utcString = dateString.endsWith('Z') ? dateString : `${dateString}Z`
+  const date = new Date(utcString)
+
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function isDeviceRemovalEligible(device: DeviceSession): boolean {
+  const registeredAt = parseSessionDate(device.registeredAt)
+  if (!registeredAt) return false
+
+  return currentTime.value - registeredAt.getTime() >= DEVICE_REMOVAL_MINIMUM_AGE_MS
+}
+
+function isDeviceRemovalEligibleOnSubmit(device: DeviceSession): boolean {
+  currentTime.value = Date.now()
+  return isDeviceRemovalEligible(device)
 }
 
 // Helper to format dates, handles null values and forces UTC parsing
@@ -136,6 +206,10 @@ const formatDate = (dateString: string | null) => {
 
     <p class="m-2 p-3 pb-0 fs-6 fw-medium uppercase">{{ t('settings.devices.other-devices') }}</p>
 
+    <div v-if="deviceActionNoticeKey" class="alert alert-info mx-2 mb-2" role="status">
+      {{ t(deviceActionNoticeKey) }}
+    </div>
+
     <p
       v-if="!isLoading && otherDevices.length === 0"
       class="d-flex justify-content-center text-body-tertiary fst-italic m-0"
@@ -178,6 +252,23 @@ const formatDate = (dateString: string | null) => {
                     {{ t('settings.devices.rename') }}
                   </button>
                 </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <button
+                    type="button"
+                    class="dropdown-item text-danger"
+                    :disabled="!isDeviceRemovalEligible(device)"
+                    :title="
+                      !isDeviceRemovalEligible(device)
+                        ? t('settings.devices.remove-too-soon')
+                        : undefined
+                    "
+                    @click="openRemoveModal(device)"
+                  >
+                    <i class="bi bi-trash me-2"></i>
+                    {{ t('settings.devices.remove') }}
+                  </button>
+                </li>
               </ul>
             </div>
           </div>
@@ -190,6 +281,15 @@ const formatDate = (dateString: string | null) => {
       :open="isRenameModalOpen"
       @update:open="updateRenameModal"
       @renamed="handleDeviceRenamed"
+    />
+    <RemoveDeviceModal
+      :device="selectedDevice"
+      :open="isRemoveModalOpen"
+      :is-removal-eligible="isDeviceRemovalEligibleOnSubmit"
+      @update:open="updateRemoveModal"
+      @removed="handleDeviceRemoved"
+      @unavailable="handleDeviceUnavailable"
+      @unauthorized="handleUnauthorized"
     />
   </div>
 </template>
