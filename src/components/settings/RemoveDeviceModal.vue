@@ -10,7 +10,7 @@ import { deviceApi } from '@/device/deviceApi'
 interface Props {
   device: DeviceSession | null
   open: boolean
-  isRemovalEligible: (device: DeviceSession) => boolean
+  isRemovalEligible: () => boolean
 }
 
 const props = defineProps<Props>()
@@ -73,7 +73,7 @@ async function removeSelectedDevice(): Promise<void> {
 
   removeErrorKey.value = null
 
-  if (!props.isRemovalEligible(device)) {
+  if (!props.isRemovalEligible()) {
     removeErrorKey.value = 'settings.devices.remove-too-soon'
     return
   }

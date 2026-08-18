@@ -113,16 +113,16 @@ function parseSessionDate(dateString: string | null): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-function isDeviceRemovalEligible(device: DeviceSession): boolean {
-  const registeredAt = parseSessionDate(device.registeredAt)
+function isCurrentDeviceRemovalEligible(): boolean {
+  const registeredAt = parseSessionDate(currentDevice.value?.registeredAt ?? null)
   if (!registeredAt) return false
 
   return currentTime.value - registeredAt.getTime() >= DEVICE_REMOVAL_MINIMUM_AGE_MS
 }
 
-function isDeviceRemovalEligibleOnSubmit(device: DeviceSession): boolean {
+function isCurrentDeviceRemovalEligibleOnSubmit(): boolean {
   currentTime.value = Date.now()
-  return isDeviceRemovalEligible(device)
+  return isCurrentDeviceRemovalEligible()
 }
 
 // Helper to format dates, handles null values and forces UTC parsing
@@ -256,10 +256,11 @@ const formatDate = (dateString: string | null) => {
                 <li>
                   <button
                     type="button"
-                    class="dropdown-item text-danger"
-                    :disabled="!isDeviceRemovalEligible(device)"
+                    class="dropdown-item"
+                    :class="{ 'text-danger': isCurrentDeviceRemovalEligible() }"
+                    :disabled="!isCurrentDeviceRemovalEligible()"
                     :title="
-                      !isDeviceRemovalEligible(device)
+                      !isCurrentDeviceRemovalEligible()
                         ? t('settings.devices.remove-too-soon')
                         : undefined
                     "
@@ -285,7 +286,7 @@ const formatDate = (dateString: string | null) => {
     <RemoveDeviceModal
       :device="selectedDevice"
       :open="isRemoveModalOpen"
-      :is-removal-eligible="isDeviceRemovalEligibleOnSubmit"
+      :is-removal-eligible="isCurrentDeviceRemovalEligibleOnSubmit"
       @update:open="updateRemoveModal"
       @removed="handleDeviceRemoved"
       @unavailable="handleDeviceUnavailable"
