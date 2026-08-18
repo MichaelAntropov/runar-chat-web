@@ -6,8 +6,10 @@ import { useConnectionStore } from '@/connection/connectionStore'
 import { useDbStore } from '@/db/dbStore'
 import { useDeviceStore } from '@/device/deviceStore'
 import { usePresenceStore } from '@/presence/presenceStore'
+import { useUserStore } from '@/user/userStore'
 
 import ChatView from './ChatView.vue'
+import DeviceRemovedModal from './DeviceRemovedModal.vue'
 import DbEncryptionModal from './DbEncryptionModal.vue'
 import LoadingOverlay from './LoadingOverlay.vue'
 import SideBar from './SideBar.vue'
@@ -15,6 +17,7 @@ import SideBar from './SideBar.vue'
 const chatStore = useChatsStore()
 const deviceStore = useDeviceStore()
 const dbStore = useDbStore()
+const userStore = useUserStore()
 useConnectionStore()
 usePresenceStore()
 
@@ -77,6 +80,11 @@ function stopResize() {
   document.removeEventListener('mouseup', stopResize)
 }
 
+async function logOutFromRecovery(): Promise<void> {
+  deviceStore.clearRecovery()
+  await userStore.signOut()
+}
+
 const showSidebar = computed(() => (isMobile.value ? activeMobileView.value === 'sidebar' : true))
 
 const showChat = computed(() => (isMobile.value ? activeMobileView.value === 'chat' : true))
@@ -96,6 +104,13 @@ watch(
 </script>
 
 <template>
+  <DeviceRemovedModal
+    v-if="deviceStore.recoveryStatus !== 'none'"
+    :is-processing="deviceStore.recoveryStatus === 'processing'"
+    :has-error="deviceStore.recoveryStatus === 'error'"
+    @logout="logOutFromRecovery"
+    @reregister="deviceStore.reregisterDevice"
+  />
   <LoadingOverlay v-if="!deviceStore.isRegistered || deviceStore.isLoading" />
   <DbEncryptionModal
     v-if="dbStore.dbStatus === 'setup-required' || dbStore.dbStatus === 'unlock-required'"

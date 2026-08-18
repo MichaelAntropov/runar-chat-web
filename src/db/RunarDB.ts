@@ -63,7 +63,7 @@ export class RunarDb extends Dexie {
   [DEVICE_SETTINGS_STORE]!: EntityTable<DeviceSettings, 'id'>;
   [PENDING_READ_RECEIPTS_STORE]!: EntityTable<PendingReadReceipt, 'messageId'>
 
-  constructor(dbId: string) {
-    super(DB_SCHEMA_PREFIX + `${dbId}`)
+  constructor(dbId: string, databaseName?: string) {
+    super(databaseName ?? DB_SCHEMA_PREFIX + dbId)
   }
 }

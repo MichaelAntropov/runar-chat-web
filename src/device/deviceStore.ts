@@ -12,6 +12,7 @@ import type { KeyBundle } from './types/KeyBundle'
 import { KEYS_STORE, PRE_KEYS_STORE, IDENTITY_KEY_BUNDLE_KEY } from '../db/RunarDB'
 import { useDbStore } from '@/db/dbStore'
 import { getDeviceLabel } from './deviceLabel'
+import { StoredDeviceUnavailableError } from '@/auth/types/StoredDeviceUnavailableError'
 
 export type DeviceRegistrationStatus =
   | 'loading'
@@ -23,6 +24,8 @@ export type DeviceRegistrationStatus =
   | 'persisted'
   | 'error'
 
+export type DeviceRecoveryStatus = 'none' | 'required' | 'processing' | 'error'
+
 const OTPK_COUNT = 5
 
 export const useDeviceStore = defineStore('device', () => {
@@ -31,6 +34,7 @@ export const useDeviceStore = defineStore('device', () => {
 
   const deviceId: Ref<string | null> = ref(null)
   const registrationStatus: Ref<DeviceRegistrationStatus> = ref('loading')
+  const recoveryStatus: Ref<DeviceRecoveryStatus> = ref('none')
 
   const identityX25519 = ref<KeyPairState>({ id: null, keyPair: null, publicKey: null })
   const identityEd25519 = ref<KeyPairState>({ id: null, keyPair: null, publicKey: null })
@@ -42,6 +46,9 @@ export const useDeviceStore = defineStore('device', () => {
   })
   const oneTimePreKeys = ref<OneTimePreKeyState[]>([])
 
+  let authUpgradePromise: Promise<boolean> | null = null
+  let suppressAutomaticRegistration = false
+
   const isRegistered = computed<boolean>(
     () => registrationStatus.value === 'registered' && !!deviceId.value,
   )
@@ -50,26 +57,25 @@ export const useDeviceStore = defineStore('device', () => {
   )
 
   watch(
-    registrationStatus,
-    (newStatus, oldStatus) => {
-      if (oldStatus === 'loading' && newStatus === 'incomplete' && !isRegistered.value) {
+    [registrationStatus, () => userStore.authStatus],
+    ([newStatus, newAuthStatus], oldValues) => {
+      const oldAuthStatus = oldValues[1]
+
+      if (oldAuthStatus !== undefined && newAuthStatus === 'none' && oldAuthStatus !== 'none') {
+        recoveryStatus.value = 'none'
+      }
+
+      if (newStatus === 'incomplete' && !isRegistered.value && !suppressAutomaticRegistration) {
         console.log('Device status not registered - attempting registration.')
-        try {
-          registerDevice()
-        } catch (error: unknown) {
+        void registerDevice().catch((error: unknown) => {
           console.log(`Failed to register device: ${error}`)
           console.error(error)
           registrationStatus.value = 'error'
-        }
+        })
       }
 
-      if (newStatus === 'registered' && userStore.authStatus === 'pre-upgrade') {
-        if (deviceId.value) {
-          console.log('Device "registered" - upgrade auth')
-          userStore.upgradeAuth(deviceId.value)
-        } else {
-          console.log('Failed to upgrade auth even with the "registered" device')
-        }
+      if (newStatus === 'registered' && newAuthStatus === 'pre-upgrade') {
+        void upgradeRegisteredDevice()
       }
     },
     { immediate: true },
@@ -79,13 +85,13 @@ export const useDeviceStore = defineStore('device', () => {
     () => dbStore.dbStatus,
     (newStatus) => {
       if (newStatus === 'ready') {
-        try {
-          loadStateFromDB()
-        } catch (error: unknown) {
+        if (recoveryStatus.value === 'processing') return
+
+        void loadStateFromDB().catch((error: unknown) => {
           console.log(`Failed to load state from IndexedDB: ${error}`)
           console.error(error)
           registrationStatus.value = 'error'
-        }
+        })
       }
     },
   )
@@ -114,6 +120,37 @@ export const useDeviceStore = defineStore('device', () => {
       console.log('No existing keys found in IndexedDB or data incomplete.')
       registrationStatus.value = 'incomplete'
     }
+  }
+
+  async function upgradeRegisteredDevice(): Promise<boolean> {
+    if (!isRegistered.value || userStore.authStatus !== 'pre-upgrade' || !deviceId.value) {
+      return false
+    }
+
+    if (authUpgradePromise) return authUpgradePromise
+
+    const registeredDeviceId = deviceId.value
+    authUpgradePromise = (async () => {
+      try {
+        console.log('Device "registered" - upgrade auth')
+        await userStore.upgradeAuth(registeredDeviceId)
+        recoveryStatus.value = 'none'
+        return true
+      } catch (error: unknown) {
+        if (error instanceof StoredDeviceUnavailableError) {
+          recoveryStatus.value = 'required'
+          return false
+        }
+
+        console.error('[device-store] - Failed to upgrade auth:', error)
+        registrationStatus.value = 'error'
+        return false
+      } finally {
+        authUpgradePromise = null
+      }
+    })()
+
+    return authUpgradePromise
   }
 
   async function generateKeysIfNeeded(): Promise<boolean> {
@@ -286,10 +323,49 @@ export const useDeviceStore = defineStore('device', () => {
     console.log('Keys persisted to IndexedDB after registration.')
   }
 
+  function resetLocalDeviceState(): void {
+    deviceId.value = null
+    identityX25519.value = { id: null, keyPair: null, publicKey: null }
+    identityEd25519.value = { id: null, keyPair: null, publicKey: null }
+    signedPreKey.value = { id: null, keyPair: null, publicKey: null, signature: null }
+    oneTimePreKeys.value = []
+    registrationStatus.value = 'incomplete'
+  }
+
+  async function reregisterDevice(): Promise<void> {
+    if (recoveryStatus.value === 'processing') return
+
+    recoveryStatus.value = 'processing'
+
+    try {
+      await dbStore.archiveCurrentDatabase()
+
+      suppressAutomaticRegistration = true
+      resetLocalDeviceState()
+      suppressAutomaticRegistration = false
+
+      await registerDevice()
+      const upgraded = await upgradeRegisteredDevice()
+      if (!upgraded && recoveryStatus.value === 'processing') {
+        throw new Error('The new device could not complete authentication.')
+      }
+    } catch (error: unknown) {
+      suppressAutomaticRegistration = false
+      registrationStatus.value = 'error'
+      recoveryStatus.value = 'error'
+      console.error('[device-store] - Failed to register a replacement device:', error)
+    }
+  }
+
+  function clearRecovery(): void {
+    recoveryStatus.value = 'none'
+  }
+
   return {
     // State (read-only refs)
     deviceId,
     registrationStatus,
+    recoveryStatus,
     identityX25519: computed(() => identityX25519.value),
     identityEd25519: computed(() => identityEd25519.value),
     preKey: computed(() => signedPreKey.value),
@@ -300,6 +376,8 @@ export const useDeviceStore = defineStore('device', () => {
 
     // Actions
     registerDevice,
+    reregisterDevice,
+    clearRecovery,
   }
 })
 

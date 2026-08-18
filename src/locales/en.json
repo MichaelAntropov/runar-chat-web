@@ -165,6 +165,14 @@
       "no-other": "No other devices"
     }
   },
+  "device-recovery": {
+    "title": "Device unavailable",
+    "description": "This device is no longer registered for your account. Sign out or register this browser as a new device.",
+    "removed-notice": "This device was removed. Sign in again to choose whether to sign out or register it as a new device.",
+    "logout": "Log out",
+    "reregister": "Register new device",
+    "error": "The new device could not be registered. Please try again."
+  },
   "pin-input": {
     "show": "Show PIN",
     "hide": "Hide PIN"

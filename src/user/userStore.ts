@@ -7,6 +7,8 @@ import type { Principal } from '../auth/types/Principal'
 
 export type AuthStatus = 'none' | 'pre-upgrade' | 'upgraded'
 
+const DEVICE_REMOVED_NOTICE_KEY = 'device-removed-notice'
+
 export const useUserStore = defineStore('user', () => {
   const authStatus: Ref<AuthStatus> = ref('none')
   const authUpgradeToken: Ref<string> = ref('')
@@ -97,6 +99,17 @@ export const useUserStore = defineStore('user', () => {
     principal.value = null
   }
 
+  function handleDeviceRemoved(): void {
+    localStorage.setItem(DEVICE_REMOVED_NOTICE_KEY, '1')
+    clearLocalAuthState()
+  }
+
+  function consumeDeviceRemovedNotice(): boolean {
+    const hasNotice = localStorage.getItem(DEVICE_REMOVED_NOTICE_KEY) === '1'
+    localStorage.removeItem(DEVICE_REMOVED_NOTICE_KEY)
+    return hasNotice
+  }
+
   async function logOut(): Promise<void> {
     if (loggingOutPromise) return loggingOutPromise
 
@@ -148,6 +161,8 @@ export const useUserStore = defineStore('user', () => {
     upgradeAuth,
     getAccessToken,
     clearLocalAuthState,
+    handleDeviceRemoved,
+    consumeDeviceRemovedNotice,
     logIn,
     signOut: logOut,
   }

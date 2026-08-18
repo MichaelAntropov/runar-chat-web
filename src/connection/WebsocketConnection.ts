@@ -3,6 +3,7 @@ export type WebSocketConnectionStatus = 'none' | 'initialized' | 'connected' | '
 interface WebsocketServiceOptions {
   onStatusChange: (status: WebSocketConnectionStatus) => void
   onMessage: (message: MessageEvent) => void
+  onTerminalClose: () => void
 }
 
 export class WebsocketConnection {
@@ -21,13 +22,21 @@ export class WebsocketConnection {
 
   private onStatusChange: (status: WebSocketConnectionStatus) => void
   private onMessage: (message: MessageEvent) => void
+  private onTerminalClose: () => void
+  private terminalClose = false
 
   constructor(options: WebsocketServiceOptions) {
     this.onStatusChange = options.onStatusChange
     this.onMessage = options.onMessage
+    this.onTerminalClose = options.onTerminalClose
   }
 
   public async connect(deviceId: string, getAccessToken: () => Promise<string>): Promise<void> {
+    if (this.terminalClose) {
+      console.log('[websocket-service] - Connection attempt ignored after terminal close.')
+      return
+    }
+
     this.deviceId = deviceId
     this.getAccessToken = getAccessToken
 
@@ -75,6 +84,7 @@ export class WebsocketConnection {
       this.reconnectTimer = undefined
     }
     this.reconnectAttempts = 0
+    this.terminalClose = false
 
     if (this.socket) {
       // Unsubscribe from events to prevent handleClose from triggering a reconnect
@@ -132,6 +142,15 @@ export class WebsocketConnection {
         this.cleanupSocket()
         return
       }
+      if (event.code === 4003) {
+        console.error(`[websocket-service] - The current device was removed.`)
+        this.terminalClose = true
+        this.cancelReconnect()
+        this.updateStatus('closed')
+        this.cleanupSocket()
+        this.onTerminalClose()
+        return
+      }
     }
 
     this.updateStatus('closed')
@@ -159,6 +178,8 @@ export class WebsocketConnection {
   }
 
   private scheduleReconnect = (): void => {
+    if (this.terminalClose) return
+
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
@@ -183,6 +204,14 @@ export class WebsocketConnection {
         console.warn('[websocket-service] - Cannot reconnect, deviceId or token getter is missing.')
       }
     }, delay)
+  }
+
+  private cancelReconnect = (): void => {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = undefined
+    }
+    this.reconnectAttempts = 0
   }
 
   private getNextDelay(): number {

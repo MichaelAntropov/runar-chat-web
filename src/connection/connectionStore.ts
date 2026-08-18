@@ -19,6 +19,7 @@ import { useUserStore } from '@/user/userStore'
 
 import { WebsocketConnection, type WebSocketConnectionStatus } from './WebsocketConnection'
 import type {
+  DeviceRemovedWsMessage,
   DeliveryReceiptWsMessage,
   MessageWsMessage,
   PresenceWsMessage,
@@ -44,6 +45,23 @@ export const useConnectionStore = defineStore('connection-store', () => {
     },
     onMessage: (event: MessageEvent) => {
       const data: Record<string, unknown> = JSON.parse(event.data)
+
+      if (data.type === 'device_removed') {
+        const msg = data as Partial<DeviceRemovedWsMessage>
+        const currentUserId = userStore.principal?.id
+        const currentDeviceId = deviceStore.deviceId
+
+        if (
+          typeof msg.userId === 'string' &&
+          typeof msg.deviceId === 'string' &&
+          msg.userId === currentUserId &&
+          msg.deviceId === currentDeviceId
+        ) {
+          websocketConnection.disconnect()
+          userStore.handleDeviceRemoved()
+        }
+        return
+      }
 
       if (data.type === 'PRESENCE') {
         const msg = data as unknown as PresenceWsMessage
@@ -78,6 +96,11 @@ export const useConnectionStore = defineStore('connection-store', () => {
       }
 
       console.error('[connection-store] - Unknown message type received:', JSON.stringify(data))
+    },
+    onTerminalClose: () => {
+      if (userStore.isAuthenticated) {
+        userStore.handleDeviceRemoved()
+      }
     },
   })
 

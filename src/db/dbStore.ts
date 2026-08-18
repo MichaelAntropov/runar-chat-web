@@ -10,6 +10,7 @@ import {
 import { computed, ref, type Ref } from 'vue'
 import { useUserStore } from '@/user/userStore'
 import { applyEncryptionMiddleware } from 'dexie-encrypted'
+import type { IndexableType } from 'dexie'
 import { dbEncryptionRepository } from './repositories/dbEncryptionRepository'
 import { decryptDEK, encryptDEK } from './crypto/dek'
 
@@ -108,6 +109,99 @@ export const useDbStore = defineStore('db', () => {
     await startDb(key)
   }
 
+  async function archiveCurrentDatabase(): Promise<void> {
+    const sourceDb = dbInstance.value
+    const userId = userStore.principal?.id
+
+    if (!sourceDb || !userId || dbStatus.value !== 'ready') {
+      throw new Error('Cannot archive the local database before it is ready.')
+    }
+
+    const encryptionState = await sourceDb.table(DB_ENCRYPTION_STORE).get(DB_ENCRYPTION_STORE_KEY)
+    const encryptionKey = dek.value
+    const archiveName = `runar-db-${userId}-removed-${Date.now()}`
+    const archiveDb = new RunarDb(archiveName, archiveName)
+    let archiveCompleted = false
+    let sourceDeleted = false
+
+    sourceDb.close()
+    dbInstance.value = null
+    dbStatus.value = 'initializing'
+
+    try {
+      if (encryptionKey) {
+        applyEncryptionMiddleware(archiveDb, encryptionKey, ENCRYPTED_STORES, async () => {
+          console.error('[dbStore] - Archive encryption key rotated')
+        })
+      }
+
+      archiveDb.version(DB_VERSION).stores(DB_SCHEMA)
+      await sourceDb.open()
+      await archiveDb.open()
+
+      for (const tableName of Object.keys(DB_SCHEMA)) {
+        await copyTable(sourceDb, archiveDb, tableName)
+      }
+
+      for (const tableName of Object.keys(DB_SCHEMA)) {
+        const sourceCount = await sourceDb.table(tableName).count()
+        const archiveCount = await archiveDb.table(tableName).count()
+        if (sourceCount !== archiveCount) {
+          throw new Error(`Database archive verification failed for table ${tableName}.`)
+        }
+      }
+
+      archiveCompleted = true
+
+      await sourceDb.close()
+      await archiveDb.close()
+      await sourceDb.delete()
+      sourceDeleted = true
+
+      const replacementDb = new RunarDb(userId)
+      if (encryptionKey) {
+        applyEncryptionMiddleware(replacementDb, encryptionKey, ENCRYPTED_STORES, async () => {
+          console.error('[dbStore] - Replacement database encryption key rotated')
+        })
+      }
+      replacementDb.version(DB_VERSION).stores(DB_SCHEMA)
+      await replacementDb.open()
+
+      if (encryptionState) {
+        await replacementDb.table(DB_ENCRYPTION_STORE).put(encryptionState, DB_ENCRYPTION_STORE_KEY)
+      }
+
+      dbInstance.value = replacementDb
+      dbStatus.value = 'ready'
+    } catch (error) {
+      if (!archiveCompleted) {
+        try {
+          await archiveDb.close()
+          await archiveDb.delete()
+        } catch (archiveCleanupError) {
+          console.error('[dbStore] - Failed to clean up incomplete archive:', archiveCleanupError)
+        }
+      }
+
+      if (!sourceDeleted) {
+        try {
+          await sourceDb.open()
+          dbInstance.value = sourceDb
+          dbStatus.value = 'ready'
+        } catch (restoreError) {
+          console.error('[dbStore] - Failed to restore the original database:', restoreError)
+          dbStatus.value = 'error'
+        }
+      } else {
+        dbStatus.value = 'error'
+      }
+
+      throw error
+    } finally {
+      dek.value = encryptionKey
+    }
+  }
+
   function resetDb() {
     if (dbInstance.value) {
       dbInstance.value.close()
@@ -132,5 +226,22 @@ export const useDbStore = defineStore('db', () => {
     setupEncryption,
     unlockDb,
     resetDb,
+    archiveCurrentDatabase,
   }
 })
+
+async function copyTable(sourceDb: RunarDb, targetDb: RunarDb, tableName: string): Promise<void> {
+  const records: Array<{ key: IndexableType; value: unknown }> = []
+
+  await sourceDb
+    .table(tableName)
+    .toCollection()
+    .each((value, cursor) => {
+      records.push({ key: cursor.primaryKey as IndexableType, value })
+    })
+
+  const targetTable = targetDb.table(tableName)
+  for (const record of records) {
+    await targetTable.put(record.value, record.key)
+  }
+}

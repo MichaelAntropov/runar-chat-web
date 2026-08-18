@@ -8,6 +8,7 @@ import type { AuthUpgradeRequest } from '../types/AuthUpgradeRequest'
 import type { AuthUpgradeResponse } from '../types/AuthUpgradeResponse'
 import { NotAuthorizedError } from '../types/NotAuthorizedError'
 import type { RefreshResponse } from '../types/RefreshResponse'
+import { StoredDeviceUnavailableError } from '../types/StoredDeviceUnavailableError'
 
 export const authApi = {
   async postAuth(payload: AuthRequest): Promise<AuthResponse> {
@@ -43,6 +44,10 @@ export const authApi = {
     })
 
     if (!response.ok) {
+      if (response.status === 404) {
+        throw new StoredDeviceUnavailableError()
+      }
+
       throw new Error(`HTTP error! Status: ${response.status}`)
     }
 

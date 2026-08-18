@@ -12,3 +12,9 @@ export type PresenceWsMessage = WsMessage<'PRESENCE', PresenceUpdate>
 export type MessageWsMessage = WsMessage<'MESSAGE', WebsocketMessage>
 
 export type DeliveryReceiptWsMessage = WsMessage<'DELIVERY_RECEIPT', DeliveryReceiptResponse>
+
+export interface DeviceRemovedWsMessage {
+  type: 'device_removed'
+  userId: string
+  deviceId: string
+}

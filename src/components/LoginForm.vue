@@ -12,6 +12,7 @@ const { t } = useI18n()
 
 const router = useRouter()
 const userStore = useUserStore()
+const showDeviceRemovedNotice = ref(userStore.consumeDeviceRemovedNotice())
 
 const PASSWORD_REGEX = /^[a-zA-Z0-9!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]+$/
 
@@ -125,6 +126,9 @@ async function authenticate(username: string, password: string): Promise<boolean
   <div class="d-flex justify-content-center align-items-center min-vh-100">
     <div class="card p-4 shadow">
       <h2 class="text-center mb-4">{{ t('login.label.login') }}</h2>
+      <div v-if="showDeviceRemovedNotice" class="alert alert-warning" role="alert">
+        {{ t('device-recovery.removed-notice') }}
+      </div>
       <form novalidate @submit.prevent="logIn">
         <div class="mb-3">
           <label for="username" class="form-label">{{ t('login.label.username') }}</label>
