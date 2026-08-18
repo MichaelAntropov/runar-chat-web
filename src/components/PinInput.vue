@@ -28,6 +28,25 @@ const pinGroups = computed(() => {
   }).filter((group) => group.length > 0)
 })
 
+const handlePaste = (e: ClipboardEvent, startIndex: number) => {
+  const pastedValue = e.clipboardData?.getData('text') ?? ''
+  const pastedCharacters = pastedValue.match(/[A-Za-z0-9]/g) ?? []
+
+  if (pastedCharacters.length === 0) {
+    e.preventDefault()
+    return
+  }
+
+  e.preventDefault()
+
+  pastedCharacters.slice(0, props.length - startIndex).forEach((character, offset) => {
+    pinArray[startIndex + offset] = character
+  })
+
+  const nextIndex = Math.min(startIndex + pastedCharacters.length, props.length - 1)
+  inputRefs.value[nextIndex]?.focus()
+}
+
 watch(
   () => pinArray,
   (newVal) => {
@@ -98,6 +117,7 @@ watch(focusReady, (newVal) => {
           v-model="pinArray[i]"
           @input="handleInput($event, i)"
           @keydown="handleKeyDown($event, i)"
+          @paste="handlePaste($event, i)"
         />
       </div>
     </div>
