@@ -38,6 +38,8 @@ const isSubmitAvailable = computed(() => {
 })
 
 const submittingInProgress = ref(false)
+const passwordVisible = ref(false)
+const confirmPasswordVisible = ref(false)
 
 function handleBlur(field: keyof typeof registrationData) {
   touched[field] = true
@@ -54,6 +56,14 @@ function handleInput(field: keyof typeof registrationData) {
   if (field === 'confirmPassword' && errors.confirmPassword) {
     validateField(field)
   }
+}
+
+function togglePasswordVisibility() {
+  passwordVisible.value = !passwordVisible.value
+}
+
+function toggleConfirmPasswordVisibility() {
+  confirmPasswordVisible.value = !confirmPasswordVisible.value
 }
 
 function validateField(field: keyof typeof registrationData) {
@@ -148,17 +158,30 @@ async function register() {
         <!-- Password -->
         <div class="mb-4">
           <label for="password" class="form-label">{{ t('register.label.password') }}</label>
-          <input
-            type="password"
-            id="password"
-            class="form-control"
-            :class="{ 'is-invalid': touched.password && errors.password }"
-            v-model="registrationData.password"
-            :placeholder="t('register.placeholder.password')"
-            autocomplete="new-password"
-            @blur="handleBlur('password')"
-            @input="handleInput('password')"
-          />
+          <div
+            class="password-input-wrapper position-relative"
+            :class="{ 'has-validation-error': touched.password && errors.password }"
+          >
+            <input
+              :type="passwordVisible ? 'text' : 'password'"
+              id="password"
+              class="form-control pe-5"
+              :class="{ 'is-invalid': touched.password && errors.password }"
+              v-model="registrationData.password"
+              :placeholder="t('register.placeholder.password')"
+              autocomplete="new-password"
+              @blur="handleBlur('password')"
+              @input="handleInput('password')"
+            />
+            <button
+              type="button"
+              class="password-toggle"
+              tabindex="-1"
+              @click="togglePasswordVisibility"
+            >
+              <i :class="passwordVisible ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
+            </button>
+          </div>
           <div class="invalid-feedback">
             {{ errors.password ? t(`register.error.${errors.password}`, errors.password) : '' }}
           </div>
@@ -171,17 +194,30 @@ async function register() {
           <label for="confirmPassword" class="form-label">{{
             t('register.label.confirm-password')
           }}</label>
-          <input
-            type="password"
-            id="confirmPassword"
-            class="form-control"
-            :class="{ 'is-invalid': touched.confirmPassword && errors.confirmPassword }"
-            v-model="registrationData.confirmPassword"
-            :placeholder="t('register.placeholder.confirm-password')"
-            autocomplete="new-password"
-            @blur="handleBlur('confirmPassword')"
-            @input="handleInput('confirmPassword')"
-          />
+          <div
+            class="password-input-wrapper position-relative"
+            :class="{ 'has-validation-error': touched.confirmPassword && errors.confirmPassword }"
+          >
+            <input
+              :type="confirmPasswordVisible ? 'text' : 'password'"
+              id="confirmPassword"
+              class="form-control pe-5"
+              :class="{ 'is-invalid': touched.confirmPassword && errors.confirmPassword }"
+              v-model="registrationData.confirmPassword"
+              :placeholder="t('register.placeholder.confirm-password')"
+              autocomplete="new-password"
+              @blur="handleBlur('confirmPassword')"
+              @input="handleInput('confirmPassword')"
+            />
+            <button
+              type="button"
+              class="password-toggle"
+              tabindex="-1"
+              @click="toggleConfirmPasswordVisibility"
+            >
+              <i :class="confirmPasswordVisible ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
+            </button>
+          </div>
           <div class="invalid-feedback">
             {{
               errors.confirmPassword
@@ -231,5 +267,46 @@ async function register() {
 .card {
   border-radius: 10px;
   width: 350px;
+}
+
+.password-input-wrapper input[type='password']::-ms-reveal,
+.password-input-wrapper input[type='password']::-ms-clear {
+  display: none;
+}
+
+.password-input-wrapper > .form-control {
+  padding-right: 2rem !important;
+}
+
+.password-input-wrapper.has-validation-error > .form-control {
+  padding-right: 4rem !important;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  color: var(--bs-secondary-color);
+  background: transparent;
+  font-size: 1.1rem;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+
+.password-input-wrapper.has-validation-error .password-toggle {
+  right: 2.5rem;
+}
+
+.password-toggle:hover {
+  color: var(--bs-body-color);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+  border-radius: var(--bs-border-radius-sm);
 }
 </style>

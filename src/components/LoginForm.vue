@@ -32,6 +32,7 @@ const touched = reactive({
 })
 
 const submittingInProgress = ref(false)
+const passwordVisible = ref(false)
 
 const isSubmitAvailable = computed(() => {
   return !errors.username && !errors.password
@@ -50,6 +51,10 @@ function handleInput(field: keyof typeof userCredentials) {
   if (errors[field]) {
     validateField(field)
   }
+}
+
+function togglePasswordVisibility() {
+  passwordVisible.value = !passwordVisible.value
 }
 
 function validateField(field: keyof typeof userCredentials) {
@@ -140,16 +145,31 @@ async function authenticate(username: string, password: string): Promise<boolean
 
         <div class="mb-3">
           <label for="password" class="form-label">{{ t('login.label.password') }}</label>
-          <input
-            type="password"
-            id="password"
-            class="form-control"
-            :class="{ 'is-invalid': (touched.password && errors.password) || errors.credentials }"
-            v-model="userCredentials.password"
-            autocomplete="current-password"
-            @blur="handleBlur('password')"
-            @input="handleInput('password')"
-          />
+          <div
+            class="password-input-wrapper position-relative"
+            :class="{
+              'has-validation-error': (touched.password && errors.password) || errors.credentials,
+            }"
+          >
+            <input
+              :type="passwordVisible ? 'text' : 'password'"
+              id="password"
+              class="form-control pe-5"
+              :class="{ 'is-invalid': (touched.password && errors.password) || errors.credentials }"
+              v-model="userCredentials.password"
+              autocomplete="current-password"
+              @blur="handleBlur('password')"
+              @input="handleInput('password')"
+            />
+            <button
+              type="button"
+              class="password-toggle"
+              tabindex="-1"
+              @click="togglePasswordVisibility"
+            >
+              <i :class="passwordVisible ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
+            </button>
+          </div>
           <div class="invalid-feedback">
             {{ errors.password ? t(`login.error.${errors.password}`, errors.password) : '' }}
           </div>
@@ -193,5 +213,46 @@ async function authenticate(username: string, password: string): Promise<boolean
 .card {
   border-radius: 10px;
   width: 350px;
+}
+
+.password-input-wrapper input[type='password']::-ms-reveal,
+.password-input-wrapper input[type='password']::-ms-clear {
+  display: none;
+}
+
+.password-input-wrapper > .form-control {
+  padding-right: 2rem !important;
+}
+
+.password-input-wrapper.has-validation-error > .form-control {
+  padding-right: 4rem !important;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  color: var(--bs-secondary-color);
+  background: transparent;
+  font-size: 1.1rem;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+
+.password-input-wrapper.has-validation-error .password-toggle {
+  right: 2.5rem;
+}
+
+.password-toggle:hover {
+  color: var(--bs-body-color);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+  border-radius: var(--bs-border-radius-sm);
 }
 </style>
