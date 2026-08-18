@@ -170,7 +170,12 @@ async function authenticate(username: string, password: string): Promise<boolean
               <i :class="passwordVisible ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
             </button>
           </div>
-          <div class="invalid-feedback">
+          <div
+            class="invalid-feedback"
+            :class="{
+              'd-block': (touched.password && errors.password) || errors.credentials,
+            }"
+          >
             {{ errors.password ? t(`login.error.${errors.password}`, errors.password) : '' }}
           </div>
         </div>

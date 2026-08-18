@@ -182,7 +182,10 @@ async function register() {
               <i :class="passwordVisible ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
             </button>
           </div>
-          <div class="invalid-feedback">
+          <div
+            class="invalid-feedback"
+            :class="{ 'd-block': touched.password && errors.password }"
+          >
             {{ errors.password ? t(`register.error.${errors.password}`, errors.password) : '' }}
           </div>
           <div class="form-text" :style="errors.password ? 'display: none' : ''">
@@ -218,7 +221,10 @@ async function register() {
               <i :class="confirmPasswordVisible ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
             </button>
           </div>
-          <div class="invalid-feedback">
+          <div
+            class="invalid-feedback"
+            :class="{ 'd-block': touched.confirmPassword && errors.confirmPassword }"
+          >
             {{
               errors.confirmPassword
                 ? t(`register.error.${errors.confirmPassword}`, errors.confirmPassword)
