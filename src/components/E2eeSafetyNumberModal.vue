@@ -33,9 +33,11 @@ const hasError = ref(false)
 const contactName = ref('')
 const localDevices: Ref<SafetyNumberDevice[]> = ref([])
 const remoteDevices: Ref<SafetyNumberDevice[]> = ref([])
+const isSafetyNumberCopied = ref(false)
 const safetyNumberGroups = computed(() => safetyNumber.value?.match(/.{5}/g) ?? [])
 
 let requestId = 0
+let copyFeedbackTimeout: ReturnType<typeof setTimeout> | null = null
 
 onMounted(() => {
   if (modalElementRef.value) modalInstance.value = new Modal(modalElementRef.value)
@@ -43,6 +45,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   requestId++
+  if (copyFeedbackTimeout !== null) clearTimeout(copyFeedbackTimeout)
   modalInstance.value?.hide()
   modalInstance.value?.dispose()
 })
@@ -54,6 +57,7 @@ async function open(): Promise<void> {
   const currentRequestId = ++requestId
   const remoteUserId = props.contactUserId
   safetyNumber.value = null
+  isSafetyNumberCopied.value = false
   contactName.value = props.contactUsername
   localDevices.value = []
   remoteDevices.value = []
@@ -92,6 +96,25 @@ function close(): void {
   requestId++
   isLoading.value = false
   modalInstance.value?.hide()
+}
+
+async function copySafetyNumber(event: MouseEvent): Promise<void> {
+  if (!safetyNumber.value || !navigator.clipboard) return
+
+  if (event.currentTarget instanceof HTMLElement) event.currentTarget.blur()
+
+  try {
+    await navigator.clipboard.writeText(safetyNumber.value)
+    isSafetyNumberCopied.value = true
+
+    if (copyFeedbackTimeout !== null) clearTimeout(copyFeedbackTimeout)
+    copyFeedbackTimeout = setTimeout(() => {
+      isSafetyNumberCopied.value = false
+      copyFeedbackTimeout = null
+    }, 2000)
+  } catch (error) {
+    console.error('[E2eeSafetyNumberModal] Failed to copy Safety Number:', error)
+  }
 }
 
 function containsCurrentDeviceIdentity(identityKeys: readonly IdentityKey[]): boolean {
@@ -155,10 +178,45 @@ defineExpose({ open })
               <p>
                 {{ t('chat.safety-number.description', { username: contactName }) }}
               </p>
-              <div class="safety-number border rounded p-3 my-3" aria-live="polite">
-                <span v-for="(group, index) in safetyNumberGroups" :key="index">
-                  {{ group }}
-                </span>
+              <div class="d-flex flex-column gap-2 my-3">
+                <div class="safety-number border rounded p-3" aria-live="polite">
+                  <span v-for="(group, index) in safetyNumberGroups" :key="index">
+                    {{ group }}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary w-100"
+                  :aria-label="
+                    t(
+                      isSafetyNumberCopied
+                        ? 'chat.safety-number.copied'
+                        : 'chat.safety-number.copy',
+                    )
+                  "
+                  :title="
+                    t(
+                      isSafetyNumberCopied
+                        ? 'chat.safety-number.copied'
+                        : 'chat.safety-number.copy',
+                    )
+                  "
+                  @click="copySafetyNumber"
+                >
+                  <i
+                    :class="isSafetyNumberCopied ? 'bi bi-check2' : 'bi bi-clipboard'"
+                    aria-hidden="true"
+                  ></i>
+                  <span class="ms-1">
+                    {{
+                      t(
+                        isSafetyNumberCopied
+                          ? 'chat.safety-number.copied'
+                          : 'chat.safety-number.copy',
+                      )
+                    }}
+                  </span>
+                </button>
               </div>
               <p class="small text-body-secondary">
                 {{ t('chat.safety-number.key-change-warning') }}

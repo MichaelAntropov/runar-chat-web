@@ -196,6 +196,8 @@
       "device": "Device {number}",
       "this-device": "This device",
       "key-fingerprint": "Key fingerprint",
+      "copy": "Copy Safety Number",
+      "copied": "Safety Number copied!",
       "loading": "Generating Safety Number...",
       "error": "The Safety Number could not be generated. Please try again.",
       "retry": "Try again",
