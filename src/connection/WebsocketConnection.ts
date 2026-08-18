@@ -42,6 +42,12 @@ export class WebsocketConnection {
 
     try {
       const token = await getAccessToken()
+      if (!token) {
+        this.cleanupSocket()
+        this.updateStatus('closed')
+        return
+      }
+
       const chatSecureHeaderProtocol: string = encodeURIComponent(
         `chat-secure-http-upgrade#Authorization#Bearer ${token}`,
       )

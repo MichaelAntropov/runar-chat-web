@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch, type Ref } from 'vue'
-import type { RefreshResponse } from '../auth/types/RefreshResponse'
+
+import { authApi } from '@/auth/api/authApi'
+
 import type { Principal } from '../auth/types/Principal'
-import type { AuthUpgradeRequest } from '@/auth/types/AuthUpgradeRequest'
-import type { AuthUpgradeResponse } from '@/auth/types/AuthUpgradeResponse'
 
 export type AuthStatus = 'none' | 'pre-upgrade' | 'upgraded'
 
@@ -19,6 +19,8 @@ export const useUserStore = defineStore('user', () => {
   )
 
   let refreshingTokenPromise: Promise<void> | null = null // Stores the ongoing refresh promise
+  let loggingOutPromise: Promise<void> | null = null
+  let authStateGeneration = 0
 
   function setRefreshTokenFromStorage() {
     const storedRefreshToken = localStorage.getItem('refresh-token') as string | null
@@ -36,7 +38,7 @@ export const useUserStore = defineStore('user', () => {
   }
 
   async function upgradeAuth(deviceId: string) {
-    const result = await postUpgradeAuth({ deviceId })
+    const result = await authApi.postUpgradeAuth({ deviceId }, authUpgradeToken.value)
     localStorage.setItem('refresh-token', result.refreshToken)
     authUpgradeToken.value = ''
     refreshToken.value = result.refreshToken
@@ -44,7 +46,12 @@ export const useUserStore = defineStore('user', () => {
     authStatus.value = 'upgraded'
   }
 
-  const getAccessToken = async () => {
+  async function getAccessToken(): Promise<string> {
+    if (loggingOutPromise) {
+      await loggingOutPromise
+      return ''
+    }
+
     if (accessToken.value !== '' && !isExpiredToken(accessToken.value)) {
       return accessToken.value
     }
@@ -61,69 +68,26 @@ export const useUserStore = defineStore('user', () => {
       return accessToken.value
     }
 
-    console.log('Log Out!')
-    logOut()
+    clearLocalAuthState()
     return ''
   }
 
-  async function postUpgradeAuth(data: AuthUpgradeRequest): Promise<AuthUpgradeResponse> {
-    const response = await fetch('/api/v1/auth/upgrade-token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + authUpgradeToken.value,
-      },
-      body: JSON.stringify(data),
-    })
+  async function refreshAccessToken(): Promise<void> {
+    const requestGeneration = authStateGeneration
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`)
-    }
-
-    return await response.json()
-  }
-
-  async function refreshAccessToken() {
     try {
-      const response = await fetch('/api/v1/auth/refresh-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + refreshToken.value,
-        },
-      })
+      const parsed = await authApi.postRefreshToken(refreshToken.value)
+      if (requestGeneration !== authStateGeneration || authStatus.value === 'none') return
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`)
-      }
-
-      const parsed: RefreshResponse = await response.json()
       accessToken.value = parsed.accessToken
     } catch (error) {
       console.error('Error refreshing access token: ', error)
-      console.log('Log Out!')
-      logOut()
+      clearLocalAuthState()
     }
   }
 
-  async function logOut() {
-    try {
-      const response = await fetch('/api/v1/auth/logout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + refreshToken.value,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`)
-      }
-    } catch (error) {
-      console.error('Error logging out: ', error)
-      return
-    }
-
+  function clearLocalAuthState(): void {
+    authStateGeneration++
     localStorage.removeItem('refresh-token')
 
     authStatus.value = 'none'
@@ -131,8 +95,33 @@ export const useUserStore = defineStore('user', () => {
     refreshToken.value = ''
     accessToken.value = ''
     principal.value = null
+  }
 
-    console.log('Logged Out!')
+  async function logOut(): Promise<void> {
+    if (loggingOutPromise) return loggingOutPromise
+
+    const refreshTokenForLogout = refreshToken.value
+    loggingOutPromise = (async () => {
+      try {
+        if (refreshingTokenPromise) {
+          await refreshingTokenPromise
+        }
+
+        const token = refreshTokenForLogout || refreshToken.value
+        if (!token) return
+
+        await authApi.postLogout(token)
+      } catch (error) {
+        console.error('Error logging out: ', error)
+      } finally {
+        clearLocalAuthState()
+        console.log('Logged Out!')
+      }
+    })().finally(() => {
+      loggingOutPromise = null
+    })
+
+    return loggingOutPromise
   }
 
   watch(authUpgradeToken, () => {
@@ -158,6 +147,7 @@ export const useUserStore = defineStore('user', () => {
     principal,
     upgradeAuth,
     getAccessToken,
+    clearLocalAuthState,
     logIn,
     signOut: logOut,
   }
