@@ -105,7 +105,7 @@ watch(
 
 <template>
   <DeviceRemovedModal
-    v-if="deviceStore.recoveryStatus !== 'none'"
+    v-if="deviceStore.recoveryStatus !== 'none' && dbStore.dbStatus === 'ready'"
     :is-processing="deviceStore.recoveryStatus === 'processing'"
     :has-error="deviceStore.recoveryStatus === 'error'"
     @logout="logOutFromRecovery"

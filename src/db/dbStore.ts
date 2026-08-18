@@ -7,7 +7,7 @@ import {
   ENCRYPTED_STORES,
   RunarDb,
 } from './RunarDB'
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import { useUserStore } from '@/user/userStore'
 import { applyEncryptionMiddleware } from 'dexie-encrypted'
 import type { IndexableType } from 'dexie'
@@ -22,6 +22,16 @@ export const useDbStore = defineStore('db', () => {
   const dek: Ref<Uint8Array<ArrayBuffer> | null> = ref(null)
 
   const userStore = useUserStore()
+
+  watch(
+    () => userStore.authStatus,
+    (status) => {
+      if (status === 'none') {
+        resetDb()
+      }
+    },
+    { immediate: true },
+  )
 
   async function init() {
     const userId = userStore.principal?.id
@@ -117,7 +127,6 @@ export const useDbStore = defineStore('db', () => {
       throw new Error('Cannot archive the local database before it is ready.')
     }
 
-    const encryptionState = await sourceDb.table(DB_ENCRYPTION_STORE).get(DB_ENCRYPTION_STORE_KEY)
     const encryptionKey = dek.value
     const archiveName = `runar-db-${userId}-removed-${Date.now()}`
     const archiveDb = new RunarDb(archiveName, archiveName)
@@ -157,22 +166,8 @@ export const useDbStore = defineStore('db', () => {
       await archiveDb.close()
       await sourceDb.delete()
       sourceDeleted = true
-
-      const replacementDb = new RunarDb(userId)
-      if (encryptionKey) {
-        applyEncryptionMiddleware(replacementDb, encryptionKey, ENCRYPTED_STORES, async () => {
-          console.error('[dbStore] - Replacement database encryption key rotated')
-        })
-      }
-      replacementDb.version(DB_VERSION).stores(DB_SCHEMA)
-      await replacementDb.open()
-
-      if (encryptionState) {
-        await replacementDb.table(DB_ENCRYPTION_STORE).put(encryptionState, DB_ENCRYPTION_STORE_KEY)
-      }
-
-      dbInstance.value = replacementDb
-      dbStatus.value = 'ready'
+      dek.value = null
+      dbStatus.value = 'setup-required'
     } catch (error) {
       if (!archiveCompleted) {
         try {
@@ -198,7 +193,9 @@ export const useDbStore = defineStore('db', () => {
 
       throw error
     } finally {
-      dek.value = encryptionKey
+      if (!sourceDeleted) {
+        dek.value = encryptionKey
+      }
     }
   }
 
@@ -207,6 +204,9 @@ export const useDbStore = defineStore('db', () => {
       dbInstance.value.close()
       dbInstance.value = null
     }
+
+    dek.value = null
+    dbStatus.value = 'initializing'
   }
 
   const db = computed(() => {

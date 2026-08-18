@@ -123,7 +123,12 @@ export const useDeviceStore = defineStore('device', () => {
   }
 
   async function upgradeRegisteredDevice(): Promise<boolean> {
-    if (!isRegistered.value || userStore.authStatus !== 'pre-upgrade' || !deviceId.value) {
+    if (
+      !isRegistered.value ||
+      userStore.authStatus !== 'pre-upgrade' ||
+      dbStore.dbStatus !== 'ready' ||
+      !deviceId.value
+    ) {
       return false
     }
 
@@ -336,11 +341,12 @@ export const useDeviceStore = defineStore('device', () => {
     if (recoveryStatus.value === 'processing') return
 
     recoveryStatus.value = 'processing'
+    suppressAutomaticRegistration = true
 
     try {
       await dbStore.archiveCurrentDatabase()
+      await waitForDatabaseReady()
 
-      suppressAutomaticRegistration = true
       resetLocalDeviceState()
       suppressAutomaticRegistration = false
 
@@ -355,6 +361,28 @@ export const useDeviceStore = defineStore('device', () => {
       recoveryStatus.value = 'error'
       console.error('[device-store] - Failed to register a replacement device:', error)
     }
+  }
+
+  function waitForDatabaseReady(): Promise<void> {
+    if (dbStore.dbStatus === 'ready') return Promise.resolve()
+    if (dbStore.dbStatus === 'error') {
+      return Promise.reject(new Error('The replacement database could not be initialized.'))
+    }
+
+    return new Promise((resolve, reject) => {
+      const stop = watch(
+        () => dbStore.dbStatus,
+        (status) => {
+          if (status === 'ready') {
+            stop()
+            resolve()
+          } else if (status === 'error') {
+            stop()
+            reject(new Error('The replacement database could not be initialized.'))
+          }
+        },
+      )
+    })
   }
 
   function clearRecovery(): void {
