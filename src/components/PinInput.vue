@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 // Props so that parent is required to specify length and its only one way data flow
 const props = defineProps<{
   length: number
 }>()
+
+const { t } = useI18n()
 
 // Model so that data flows both ways
 const modelValue = defineModel<string>()
@@ -124,6 +127,7 @@ watch(focusReady, (newVal) => {
     <button
       type="button"
       class="btn btn-outline-secondary w-100 eye-box"
+      :aria-label="t(passwordVisible ? 'pin-input.hide' : 'pin-input.show')"
       @click="togglePasswordVisibility()"
     >
       <i v-if="passwordVisible" class="bi bi-eye-slash"></i>

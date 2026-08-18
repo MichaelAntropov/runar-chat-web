@@ -155,6 +155,26 @@
       "no-other": "No other devices"
     }
   },
+  "pin-input": {
+    "show": "Show PIN",
+    "hide": "Hide PIN"
+  },
+  "db-encryption": {
+    "unlock-title": "Unlock Messages",
+    "setup-prompt-title": "Enable Encryption",
+    "setup-title": "Set Your PIN",
+    "unlock-description": "Enter your PIN to decrypt your messages.",
+    "setup-prompt-description": "Would you like to encrypt your local message database? You will need to create a PIN.",
+    "setup-create-description": "Create a {length}-character alphanumeric PIN.",
+    "setup-verify-description": "Confirm your PIN.",
+    "error-pin-incomplete": "Please fill in the complete PIN.",
+    "error-pin-mismatch": "PINs do not match.",
+    "no": "No",
+    "encrypt": "Encrypt",
+    "continue": "Continue",
+    "go-back": "Go back",
+    "complete": "Complete"
+  },
   "chat": {
     "message-placeholder": "Type your message...",
     "send-error": "The message could not be sent. Please try again.",

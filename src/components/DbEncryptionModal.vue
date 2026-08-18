@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
 import { Modal } from 'bootstrap'
-import PinInput from './PinInput.vue'
+import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+
 import { useDbStore } from '@/db/dbStore'
+
+import PinInput from './PinInput.vue'
 
 const PIN_LENGTH = 8
 
+const { t } = useI18n()
 const dbStore = useDbStore()
 
 const dbEncryptionModalRef = ref<HTMLElement | null>(null)
@@ -16,7 +20,7 @@ const step = ref<'SETUP_PROMPT' | 'SETUP_CREATE' | 'SETUP_VERIFY' | 'UNLOCK'>('U
 const focusReady = ref(false)
 const pin = ref<string>('')
 const confirmPin = ref<string>('')
-const errorMessage = ref<string>('')
+const errorMessageKey = ref<string>('')
 
 onMounted(() => {
   if (dbEncryptionModalRef.value) {
@@ -40,7 +44,7 @@ const clearAndMoveToStep = (newStep: typeof step.value) => {
   step.value = newStep
   pin.value = ''
   confirmPin.value = ''
-  errorMessage.value = ''
+  errorMessageKey.value = ''
 }
 
 const handleUnlock = () => {
@@ -51,10 +55,10 @@ const handleUnlock = () => {
 
 const handleSetupPinCreated = () => {
   if (pin.value.length !== PIN_LENGTH) {
-    errorMessage.value = 'PINs has to be filled in!'
+    errorMessageKey.value = 'db-encryption.error-pin-incomplete'
   } else {
     step.value = 'SETUP_VERIFY'
-    errorMessage.value = ''
+    errorMessageKey.value = ''
   }
 }
 
@@ -64,7 +68,7 @@ const handleSetupVerifyAndComplete = () => {
     console.log('Setting up encryption with PIN:', pin.value)
     dbStore.setupEncryption(pin.value)
   } else {
-    errorMessage.value = 'PINs do not match!'
+    errorMessageKey.value = 'db-encryption.error-pin-mismatch'
     confirmPin.value = ''
   }
 }
@@ -82,19 +86,23 @@ const handleEncryptionDeclined = () => {
         <!-- HEADER -->
         <div class="modal-header">
           <h5 class="modal-title">
-            <span v-if="step === 'UNLOCK'">Unlock Messages</span>
-            <span v-else-if="step === 'SETUP_PROMPT'">Enable Encryption</span>
-            <span v-else>Set Your PIN</span>
+            <span v-if="step === 'UNLOCK'">{{ t('db-encryption.unlock-title') }}</span>
+            <span v-else-if="step === 'SETUP_PROMPT'">
+              {{ t('db-encryption.setup-prompt-title') }}
+            </span>
+            <span v-else>{{ t('db-encryption.setup-title') }}</span>
           </h5>
         </div>
 
         <div class="modal-body text-center p-4">
           <!-- ERROR ALERT -->
-          <div v-if="errorMessage" class="alert alert-danger p-2 small">{{ errorMessage }}</div>
+          <div v-if="errorMessageKey" class="alert alert-danger p-2 small">
+            {{ t(errorMessageKey) }}
+          </div>
 
           <!-- UNLOCK MODE -->
           <div v-if="step === 'UNLOCK'">
-            <p>Enter your PIN to decrypt your messages.</p>
+            <p>{{ t('db-encryption.unlock-description') }}</p>
             <PinInput
               :length="PIN_LENGTH"
               v-model="pin"
@@ -102,43 +110,47 @@ const handleEncryptionDeclined = () => {
               @complete="handleUnlock"
             />
             <div class="d-flex mt-3">
-              <button class="btn btn-primary w-100" @click="handleUnlock">Continue</button>
+              <button class="btn btn-primary w-100" @click="handleUnlock">
+                {{ t('db-encryption.continue') }}
+              </button>
             </div>
           </div>
 
           <!-- SETUP FLOW -->
           <div v-else-if="step === 'SETUP_PROMPT'">
-            <p>
-              Would you like to encrypt your local message database? You will need to create a PIN.
-            </p>
+            <p>{{ t('db-encryption.setup-prompt-description') }}</p>
             <div class="d-flex gap-2">
-              <button class="btn btn-secondary w-100" @click="handleEncryptionDeclined">No</button>
+              <button class="btn btn-secondary w-100" @click="handleEncryptionDeclined">
+                {{ t('db-encryption.no') }}
+              </button>
               <button class="btn btn-primary w-100" @click="clearAndMoveToStep('SETUP_CREATE')">
-                Encrypt
+                {{ t('db-encryption.encrypt') }}
               </button>
             </div>
           </div>
 
           <div v-else-if="step === 'SETUP_CREATE'">
-            <p>Create a {{ PIN_LENGTH }}-digit alphanumeric PIN.</p>
+            <p>{{ t('db-encryption.setup-create-description', { length: PIN_LENGTH }) }}</p>
             <PinInput :length="PIN_LENGTH" v-model="pin" />
             <div class="d-flex gap-2 mt-3">
               <button class="btn btn-secondary w-100" @click="clearAndMoveToStep('SETUP_PROMPT')">
-                Go back
+                {{ t('db-encryption.go-back') }}
               </button>
-              <button class="btn btn-primary w-100" @click="handleSetupPinCreated">Continue</button>
+              <button class="btn btn-primary w-100" @click="handleSetupPinCreated">
+                {{ t('db-encryption.continue') }}
+              </button>
             </div>
           </div>
 
           <div v-else-if="step === 'SETUP_VERIFY'">
-            <p>Confirm your PIN.</p>
+            <p>{{ t('db-encryption.setup-verify-description') }}</p>
             <PinInput :length="PIN_LENGTH" v-model="confirmPin" />
             <div class="d-flex gap-2 mt-3">
               <button class="btn btn-secondary w-100" @click="clearAndMoveToStep('SETUP_CREATE')">
-                Go back
+                {{ t('db-encryption.go-back') }}
               </button>
               <button class="btn btn-primary w-100" @click="handleSetupVerifyAndComplete">
-                Complete
+                {{ t('db-encryption.complete') }}
               </button>
             </div>
           </div>

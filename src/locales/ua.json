@@ -155,6 +155,26 @@
       "no-other": "Інших пристроїв немає"
     }
   },
+  "pin-input": {
+    "show": "Показати PIN-код",
+    "hide": "Приховати PIN-код"
+  },
+  "db-encryption": {
+    "unlock-title": "Розблокувати повідомлення",
+    "setup-prompt-title": "Увімкнути шифрування",
+    "setup-title": "Встановіть PIN-код",
+    "unlock-description": "Введіть PIN-код, щоб розшифрувати повідомлення.",
+    "setup-prompt-description": "Бажаєте зашифрувати локальну базу повідомлень? Вам потрібно буде створити PIN-код.",
+    "setup-create-description": "Створіть буквено-цифровий PIN-код із {length} символів.",
+    "setup-verify-description": "Підтвердьте PIN-код.",
+    "error-pin-incomplete": "Будь ласка, заповніть PIN-код повністю.",
+    "error-pin-mismatch": "PIN-коди не збігаються.",
+    "no": "Ні",
+    "encrypt": "Зашифрувати",
+    "continue": "Продовжити",
+    "go-back": "Назад",
+    "complete": "Завершити"
+  },
   "chat": {
     "message-placeholder": "Введіть повідомлення...",
     "send-error": "Не вдалося надіслати повідомлення. Спробуйте ще раз.",
