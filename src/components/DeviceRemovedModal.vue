@@ -30,7 +30,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  modalInstance?.hide()
   modalInstance?.dispose()
 })
 </script>
