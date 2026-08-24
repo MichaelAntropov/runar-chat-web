@@ -1,6 +1,13 @@
+import { concatBytes } from '@/crypto/encoding/binaryEncoding'
+
+import { encodeDoubleRatchetHeader } from './doubleRatchetEncoding'
+import { encryptDoubleRatchetPayload } from './doubleRatchetEncryption'
 import {
   type ChainKdfResult,
+  type DoubleRatchetActiveState,
   type DoubleRatchetChainKey,
+  type DoubleRatchetEncryptInput,
+  type DoubleRatchetEncryptResult,
   type DoubleRatchetInitiatorInitInput,
   type DoubleRatchetInitKeyPair,
   type DoubleRatchetKeyPair,
@@ -12,12 +19,14 @@ import {
   type DoubleRatchetSecretKey,
   type DoubleRatchetSendingInitialState,
   type RootKdfResult,
+  type SendingChainAdvanceResult,
 } from './doubleRatchetTypes'
 
 const X25519_KEY_LENGTH = 32
 const ROOT_KDF_INFO = new TextEncoder().encode('runar-chat/double-ratchet/root/v1')
 const MESSAGE_KEY_CONSTANT = new Uint8Array([0x01])
 const CHAIN_KEY_CONSTANT = new Uint8Array([0x02])
+const MAX_UINT32 = 0xffffffff
 
 export async function initializeDoubleRatchetAsInitiator(
   input: DoubleRatchetInitiatorInitInput,
@@ -79,9 +88,52 @@ export async function initializeDoubleRatchetAsReceiver(
   }
 }
 
-export async function deriveChainKeys(
-  chainKey: DoubleRatchetChainKey,
-): Promise<ChainKdfResult> {
+export async function encryptMessage(input: DoubleRatchetEncryptInput): Promise<DoubleRatchetEncryptResult> {
+  validateBytes(input.plaintext, 'Double Ratchet plaintext')
+  validateBytes(input.associatedData, 'Double Ratchet associated data')
+  validateSendingMessageNumber(input.state.sendingMessageNumber)
+
+  let advanceResult: SendingChainAdvanceResult | undefined
+  let authenticatedData: Uint8Array<ArrayBuffer> | undefined
+  let operationSucceeded = false
+
+  try {
+    advanceResult = await advanceDoubleRatchetSendingChain(input.state)
+
+    const encodedHeader = encodeDoubleRatchetHeader({
+      ratchetPublicKey: input.state.localRatchetKeyPair.publicKey,
+      previousChainLength: input.state.previousSendingChainLength,
+      messageNumber: advanceResult.messageNumber,
+    })
+
+    authenticatedData = concatBytes([input.associatedData, encodedHeader])
+
+    const cipherText = await encryptDoubleRatchetPayload({
+      messageKey: advanceResult.messageKey,
+      plaintext: input.plaintext,
+      associatedData: authenticatedData,
+    })
+
+    operationSucceeded = true
+
+    return {
+      encryptedMessage: {
+        encodedHeader,
+        cipherText,
+      },
+      nextState: advanceResult.nextState,
+    } as DoubleRatchetEncryptResult
+  } finally {
+    advanceResult?.messageKey.fill(0)
+    authenticatedData?.fill(0)
+
+    if (!operationSucceeded) {
+      advanceResult?.nextState.sendingChainKey.fill(0)
+    }
+  }
+}
+
+async function deriveChainKeys(chainKey: DoubleRatchetChainKey): Promise<ChainKdfResult> {
   validateKeyLength(chainKey, 'Double Ratchet chain key')
 
   const hmacKey = await globalThis.crypto.subtle.importKey(
@@ -101,6 +153,22 @@ export async function deriveChainKeys(
     chainKey: new Uint8Array(nextChainKey) as DoubleRatchetChainKey,
     messageKey: new Uint8Array(messageKey) as DoubleRatchetMessageKey,
   }
+}
+
+async function advanceDoubleRatchetSendingChain(
+  state: DoubleRatchetSendingInitialState | DoubleRatchetActiveState
+): Promise<SendingChainAdvanceResult> {
+  const { chainKey, messageKey } = await deriveChainKeys(state.sendingChainKey)
+  const messageNumber = state.sendingMessageNumber
+  return {
+    messageKey,
+    messageNumber,
+    nextState: {
+      ...state,
+      sendingChainKey: chainKey,
+      sendingMessageNumber: state.sendingMessageNumber + 1,
+    },
+  } as SendingChainAdvanceResult
 }
 
 async function deriveRootAndChainKeys(
@@ -191,6 +259,12 @@ function validateKeyLength(key: Uint8Array<ArrayBuffer>, name: string): void {
 function validateBytes(value: Uint8Array<ArrayBuffer>, name: string): void {
   if (!(value instanceof Uint8Array)) {
     throw new TypeError(`${name} must be a Uint8Array`)
+  }
+}
+
+function validateSendingMessageNumber(messageNumber: number): void {
+  if (!Number.isSafeInteger(messageNumber) || messageNumber < 0 || messageNumber >= MAX_UINT32) {
+    throw new RangeError('Double Ratchet sending message number cannot be advanced')
   }
 }
 

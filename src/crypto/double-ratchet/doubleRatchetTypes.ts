@@ -83,6 +83,22 @@ export interface ChainKdfResult {
   readonly messageKey: DoubleRatchetMessageKey
 }
 
+export interface DoubleRatchetEncryptInput {
+  readonly state: DoubleRatchetSendingInitialState | DoubleRatchetActiveState
+  readonly plaintext: Uint8Array<ArrayBuffer>
+  readonly associatedData: Uint8Array<ArrayBuffer>
+}
+
+export interface DoubleRatchetEncryptedMessage {
+  readonly encodedHeader: EncodedDoubleRatchetHeader
+  readonly cipherText: DoubleRatchetCipherText
+}
+
+export interface DoubleRatchetEncryptResult {
+  readonly encryptedMessage: DoubleRatchetEncryptedMessage
+  readonly nextState: DoubleRatchetSendingInitialState | DoubleRatchetActiveState
+}
+
 export interface DoubleRatchetPayloadEncryptionInput {
   readonly messageKey: DoubleRatchetMessageKey
   readonly plaintext: Uint8Array<ArrayBuffer>
@@ -93,4 +109,10 @@ export interface DoubleRatchetPayloadDecryptionInput {
   readonly messageKey: DoubleRatchetMessageKey
   readonly cipherText: DoubleRatchetCipherText
   readonly associatedData: Uint8Array<ArrayBuffer>
+}
+
+export interface SendingChainAdvanceResult {
+  readonly messageKey: DoubleRatchetMessageKey
+  readonly messageNumber: number
+  readonly nextState: DoubleRatchetSendingInitialState | DoubleRatchetActiveState
 }
