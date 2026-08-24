@@ -13,6 +13,7 @@ export type DoubleRatchetChainKey = Brand<Uint8Array<ArrayBuffer>, 'DoubleRatche
 export type DoubleRatchetMessageKey = Brand<Uint8Array<ArrayBuffer>, 'DoubleRatchetMessageKey'>
 export type EncodedDoubleRatchetHeader = Brand<Uint8Array<ArrayBuffer>, 'EncodedDoubleRatchetHeader'>
 export type DoubleRatchetCipherText = Brand<Uint8Array<ArrayBuffer>, 'DoubleRatchetCipherText'>
+export type DoubleRatchetSkippedMessageKeyId = Brand<string, 'DoubleRatchetSkippedMessageKeyId'>
 
 export interface DoubleRatchetHeader {
   readonly ratchetPublicKey: DoubleRatchetPublicKeyBytes
@@ -21,42 +22,48 @@ export interface DoubleRatchetHeader {
 }
 
 export interface SkippedDoubleRatchetMessageKey {
+  readonly id: DoubleRatchetSkippedMessageKeyId
   readonly ratchetPublicKey: DoubleRatchetPublicKeyBytes
   readonly messageNumber: number
   readonly messageKey: DoubleRatchetMessageKey
 }
 
-interface DoubleRatchetStateBase {
+export type DoubleRatchetSkippedMessageKeys = ReadonlyMap<DoubleRatchetSkippedMessageKeyId, SkippedDoubleRatchetMessageKey>
+
+export interface DoubleRatchetSendingInitialState {
   readonly localRatchetKeyPair: DoubleRatchetKeyPair
+  readonly remoteRatchetPublicKey: DoubleRatchetPublicKeyBytes
   readonly rootKey: DoubleRatchetRootKey
+  readonly sendingChainKey: DoubleRatchetChainKey
+  readonly receivingChainKey: null
   readonly sendingMessageNumber: number
   readonly receivingMessageNumber: number
   readonly previousSendingChainLength: number
-  readonly skippedMessageKeys: readonly SkippedDoubleRatchetMessageKey[]
 }
 
-export interface DoubleRatchetSendingInitialState extends DoubleRatchetStateBase {
-  readonly remoteRatchetPublicKey: DoubleRatchetPublicKeyBytes
-  readonly sendingChainKey: DoubleRatchetChainKey
-  readonly receivingChainKey: null
-}
-
-export interface DoubleRatchetReceiverInitialState extends DoubleRatchetStateBase {
+export interface DoubleRatchetReceiverInitialState {
+  readonly localRatchetKeyPair: DoubleRatchetKeyPair
   readonly remoteRatchetPublicKey: null
+  readonly rootKey: DoubleRatchetRootKey
   readonly sendingChainKey: null
   readonly receivingChainKey: null
+  readonly sendingMessageNumber: number
+  readonly receivingMessageNumber: number
+  readonly previousSendingChainLength: number
 }
 
-export interface DoubleRatchetActiveState extends DoubleRatchetStateBase {
+export interface DoubleRatchetActiveState {
+  readonly localRatchetKeyPair: DoubleRatchetKeyPair
   readonly remoteRatchetPublicKey: DoubleRatchetPublicKeyBytes
+  readonly rootKey: DoubleRatchetRootKey
   readonly sendingChainKey: DoubleRatchetChainKey
   readonly receivingChainKey: DoubleRatchetChainKey
+  readonly sendingMessageNumber: number
+  readonly receivingMessageNumber: number
+  readonly previousSendingChainLength: number
 }
 
-export type DoubleRatchetState =
-  | DoubleRatchetReceiverInitialState
-  | DoubleRatchetSendingInitialState
-  | DoubleRatchetActiveState
+export type DoubleRatchetState = DoubleRatchetReceiverInitialState | DoubleRatchetSendingInitialState | DoubleRatchetActiveState
 
 export interface DoubleRatchetInitiatorInitInput {
   readonly sharedSecret: Uint8Array<ArrayBuffer>
@@ -71,16 +78,6 @@ export interface DoubleRatchetInitKeyPair {
 export interface DoubleRatchetReceiverInitInput {
   readonly sharedSecret: Uint8Array<ArrayBuffer>
   readonly receiverInitialRatchetKeyPair: DoubleRatchetInitKeyPair
-}
-
-export interface RootKdfResult {
-  readonly rootKey: DoubleRatchetRootKey
-  readonly chainKey: DoubleRatchetChainKey
-}
-
-export interface ChainKdfResult {
-  readonly chainKey: DoubleRatchetChainKey
-  readonly messageKey: DoubleRatchetMessageKey
 }
 
 export interface DoubleRatchetEncryptInput {
@@ -99,20 +96,24 @@ export interface DoubleRatchetEncryptResult {
   readonly nextState: DoubleRatchetSendingInitialState | DoubleRatchetActiveState
 }
 
-export interface DoubleRatchetPayloadEncryptionInput {
-  readonly messageKey: DoubleRatchetMessageKey
+export interface DoubleRatchetDecryptInput {
+  readonly state: DoubleRatchetState
+  readonly encryptedMessage: DoubleRatchetEncryptedMessage
+  readonly associatedData: Uint8Array<ArrayBuffer>
+  readonly skippedMessageKeys: DoubleRatchetSkippedMessageKeys
+}
+
+export interface DoubleRatchetSkippedMessageKeyChanges {
+  readonly added: readonly SkippedDoubleRatchetMessageKey[]
+  readonly consumed: DoubleRatchetSkippedMessageKeyId | null
+}
+
+export interface DoubleRatchetStateChange {
+  readonly nextCoreState: DoubleRatchetState
+  readonly skippedMessageKeys: DoubleRatchetSkippedMessageKeyChanges
+}
+
+export interface DoubleRatchetDecryptResult {
   readonly plaintext: Uint8Array<ArrayBuffer>
-  readonly associatedData: Uint8Array<ArrayBuffer>
-}
-
-export interface DoubleRatchetPayloadDecryptionInput {
-  readonly messageKey: DoubleRatchetMessageKey
-  readonly cipherText: DoubleRatchetCipherText
-  readonly associatedData: Uint8Array<ArrayBuffer>
-}
-
-export interface SendingChainAdvanceResult {
-  readonly messageKey: DoubleRatchetMessageKey
-  readonly messageNumber: number
-  readonly nextState: DoubleRatchetSendingInitialState | DoubleRatchetActiveState
+  readonly stateChange: DoubleRatchetStateChange
 }

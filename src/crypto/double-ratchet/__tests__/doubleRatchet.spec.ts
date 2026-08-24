@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  initializeDoubleRatchetAsInitiator,
-  initializeDoubleRatchetAsReceiver,
-} from '@/crypto/double-ratchet/doubleRatchet'
+import { initializeDoubleRatchetAsInitiator, initializeDoubleRatchetAsReceiver } from '@/crypto/double-ratchet/doubleRatchet'
 import { generateSpkX25519KeyPair } from '@/crypto/keys/keyGeneration'
 
 describe('Double Ratchet initiator initialization', () => {
@@ -17,9 +14,7 @@ describe('Double Ratchet initiator initialization', () => {
       receiverInitialRatchetPublicKey: receiverInitialRatchetKeyPair.publicKey,
     })
 
-    const expectedRemotePublicKey = new Uint8Array(
-      await globalThis.crypto.subtle.exportKey('raw', receiverInitialRatchetKeyPair.publicKey),
-    )
+    const expectedRemotePublicKey = new Uint8Array(await globalThis.crypto.subtle.exportKey('raw', receiverInitialRatchetKeyPair.publicKey))
 
     expect(state.localRatchetKeyPair.secretKey.type).toBe('private')
     expect(state.localRatchetKeyPair.secretKey.algorithm.name).toBe('X25519')
@@ -32,7 +27,6 @@ describe('Double Ratchet initiator initialization', () => {
     expect(state.sendingMessageNumber).toBe(0)
     expect(state.receivingMessageNumber).toBe(0)
     expect(state.previousSendingChainLength).toBe(0)
-    expect(state.skippedMessageKeys).toEqual([])
     expect(sharedSecret).toEqual(sharedSecretBeforeInitialization)
   })
 
@@ -43,24 +37,20 @@ describe('Double Ratchet initiator initialization', () => {
       initializeDoubleRatchetAsInitiator({
         sharedSecret: new Uint8Array(31),
         receiverInitialRatchetPublicKey: receiverInitialRatchetKeyPair.publicKey,
-      }),
+      })
     ).rejects.toThrow('Double Ratchet shared secret must be 32 bytes')
   })
 
   it('rejects a key that is not an X25519 public key', async () => {
-    const invalidKey = await globalThis.crypto.subtle.importKey(
-      'raw',
-      globalThis.crypto.getRandomValues(new Uint8Array(32)),
-      'AES-GCM',
-      false,
-      ['encrypt'],
-    )
+    const invalidKey = await globalThis.crypto.subtle.importKey('raw', globalThis.crypto.getRandomValues(new Uint8Array(32)), 'AES-GCM', false, [
+      'encrypt',
+    ])
 
     await expect(
       initializeDoubleRatchetAsInitiator({
         sharedSecret: globalThis.crypto.getRandomValues(new Uint8Array(32)),
         receiverInitialRatchetPublicKey: invalidKey,
-      }),
+      })
     ).rejects.toThrow('Receiver initial ratchet key must be an X25519 public key')
   })
 })

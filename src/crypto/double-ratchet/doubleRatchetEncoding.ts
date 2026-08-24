@@ -1,6 +1,7 @@
 import type {
   DoubleRatchetHeader,
   DoubleRatchetPublicKeyBytes,
+  DoubleRatchetSkippedMessageKeyId,
   EncodedDoubleRatchetHeader,
 } from './doubleRatchetTypes'
 
@@ -24,33 +25,40 @@ export function encodeDoubleRatchetHeader(header: DoubleRatchetHeader): EncodedD
   return encodedHeader as EncodedDoubleRatchetHeader
 }
 
-export function decodeDoubleRatchetHeader(
-  encodedHeader: Uint8Array<ArrayBuffer>,
-): DoubleRatchetHeader {
+export function decodeDoubleRatchetHeader(encodedHeader: Uint8Array<ArrayBuffer>): DoubleRatchetHeader {
   if (!(encodedHeader instanceof Uint8Array)) {
     throw new TypeError('Encoded Double Ratchet header must be a Uint8Array')
   }
 
   if (encodedHeader.byteLength !== DOUBLE_RATCHET_HEADER_LENGTH) {
-    throw new RangeError(
-      `Encoded Double Ratchet header must be ${DOUBLE_RATCHET_HEADER_LENGTH} bytes`,
-    )
+    throw new RangeError(`Encoded Double Ratchet header must be ${DOUBLE_RATCHET_HEADER_LENGTH} bytes`)
   }
 
-  const view = new DataView(
-    encodedHeader.buffer,
-    encodedHeader.byteOffset,
-    encodedHeader.byteLength,
-  )
+  const view = new DataView(encodedHeader.buffer, encodedHeader.byteOffset, encodedHeader.byteLength)
 
   return {
-    ratchetPublicKey: encodedHeader.slice(
-      0,
-      X25519_PUBLIC_KEY_LENGTH,
-    ) as DoubleRatchetPublicKeyBytes,
+    ratchetPublicKey: encodedHeader.slice(0, X25519_PUBLIC_KEY_LENGTH) as DoubleRatchetPublicKeyBytes,
     previousChainLength: view.getUint32(X25519_PUBLIC_KEY_LENGTH, false),
     messageNumber: view.getUint32(X25519_PUBLIC_KEY_LENGTH + COUNTER_LENGTH, false),
   }
+}
+
+export function createDoubleRatchetSkippedMessageKeyId(
+  ratchetPublicKey: DoubleRatchetPublicKeyBytes,
+  messageNumber: number
+): DoubleRatchetSkippedMessageKeyId {
+  validatePublicKey(ratchetPublicKey)
+  validateCounter(messageNumber, 'Message number')
+
+  let encodedPublicKey = ''
+
+  for (const byte of ratchetPublicKey) {
+    encodedPublicKey += byte.toString(16).padStart(2, '0')
+  }
+
+  const encodedMessageNumber = messageNumber.toString(16).padStart(COUNTER_LENGTH * 2, '0')
+
+  return `${encodedPublicKey}:${encodedMessageNumber}` as DoubleRatchetSkippedMessageKeyId
 }
 
 function validatePublicKey(publicKey: DoubleRatchetPublicKeyBytes): void {
