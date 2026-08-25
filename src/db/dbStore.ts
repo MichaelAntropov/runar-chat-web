@@ -1,12 +1,5 @@
 import { defineStore } from 'pinia'
-import {
-  DB_ENCRYPTION_STORE,
-  DB_ENCRYPTION_STORE_KEY,
-  DB_SCHEMA,
-  DB_VERSION,
-  ENCRYPTED_STORES,
-  RunarDb,
-} from './RunarDB'
+import { DB_ENCRYPTION_STORE, DB_ENCRYPTION_STORE_KEY, DB_SCHEMA, DB_VERSION, ENCRYPTED_STORES, RunarDb } from './RunarDB'
 import { computed, ref, watch, type Ref } from 'vue'
 import { useUserStore } from '@/user/userStore'
 import { applyEncryptionMiddleware } from 'dexie-encrypted'
@@ -30,7 +23,7 @@ export const useDbStore = defineStore('db', () => {
         resetDb()
       }
     },
-    { immediate: true },
+    { immediate: true }
   )
 
   async function init() {
@@ -162,7 +155,7 @@ export const useDbStore = defineStore('db', () => {
 
       archiveCompleted = true
 
-      await sourceDb.close()
+      await sourceDb.close() // TODO: Reconsider usage of await here
       await archiveDb.close()
       await sourceDb.delete()
       sourceDeleted = true
@@ -211,10 +204,7 @@ export const useDbStore = defineStore('db', () => {
 
   const db = computed(() => {
     if (!dbInstance.value) {
-      throw new Error(
-        'Database accessed before initialization. ' +
-          "Ensure the UI is guarding this via dbStore.dbStatus === 'ready'",
-      )
+      throw new Error('Database accessed before initialization. ' + "Ensure the UI is guarding this via dbStore.dbStatus === 'ready'")
     }
     return dbInstance.value
   })

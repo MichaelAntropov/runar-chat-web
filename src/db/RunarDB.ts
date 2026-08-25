@@ -4,7 +4,7 @@ import { NON_INDEXED_FIELDS } from 'dexie-encrypted'
 import type { ChatState } from '@/chat/types/chat/ChatState'
 import type { StoredMessage } from '@/chat/types/chat/StoredMessage'
 import type { PendingReadReceipt } from '@/chat/types/receipt/PendingReadReceipt'
-import type { KeyBundle } from '@/device/types/KeyBundle'
+import type { LocalDevice } from '@/device/types/LocalDevice'
 import type { OneTimePreKeyState } from '@/device/types/OneTimePreKeyState'
 import type { DeviceSettings } from '@/settings/types/DeviceSettings'
 
@@ -52,7 +52,7 @@ export const ENCRYPTED_STORES = {
 }
 
 export class RunarDb extends Dexie {
-  [KEYS_STORE]!: Table<KeyBundle, string>;
+  [KEYS_STORE]!: Table<LocalDevice, string>;
   [PRE_KEYS_STORE]!: EntityTable<OneTimePreKeyState, 'id'>;
   [MESSAGES_STORE]!: EntityTable<StoredMessage, 'id'>;
   [CHATS_STORE]!: Table<unknown, string>;

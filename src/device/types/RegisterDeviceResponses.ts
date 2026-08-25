@@ -1,10 +1,11 @@
 export interface RegisterDeviceResponse {
   deviceId: string
-  preKeyCreatedAt: Date
+  signedPreKeyId: string
+  signedPreKeyCreatedAt: string
   oneTimePreKeys: OneTimePreKeyResponse[]
 }
 
 export interface OneTimePreKeyResponse {
   id: string
-  createdAt: Date
+  createdAt: string
 }

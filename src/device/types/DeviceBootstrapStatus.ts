@@ -1,0 +1,11 @@
+export type DeviceBootstrapStatus =
+  | 'idle'
+  | 'waiting-for-database'
+  | 'loading-local-device'
+  | 'generating-keys'
+  | 'registering'
+  | 'persisting'
+  | 'upgrading-auth'
+  | 'ready'
+  | 'recovery-required'
+  | 'error'

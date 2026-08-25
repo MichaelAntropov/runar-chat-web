@@ -11,6 +11,7 @@ import {
 import { useChatsStore } from '@/chat/chatStore'
 import type { StoredMessage } from '@/chat/types/chat/StoredMessage'
 import { MessageReceiverBlockedError } from '@/chat/types/message/MessageReceiverBlockedError'
+import { runtimePolicy } from '@/core/config/runtimePolicy'
 import { useUserStore } from '@/user/userStore'
 
 import ChatHeader from './ChatHeader.vue'
@@ -49,6 +50,7 @@ const isCurrentRecipientBlocked = computed(() => {
   const userId = chatStore.currentChat?.contact.userId
   return userId ? blockingStore.isBlocked(userId) : false
 })
+const isMessagingUnavailable = computed(() => !runtimePolicy.legacyDirectMessagingEnabled)
 
 const messageDateGroups = computed<MessageDateGroup[]>(() => {
   const groups: MessageDateGroup[] = []
@@ -68,7 +70,11 @@ const messageDateGroups = computed<MessageDateGroup[]>(() => {
 })
 
 function canMarkMessagesAsRead(): boolean {
-  return document.visibilityState === 'visible' && document.hasFocus()
+  return (
+    runtimePolicy.legacyDirectMessagingEnabled &&
+    document.visibilityState === 'visible' &&
+    document.hasFocus()
+  )
 }
 
 function isSufficientlyVisible(element: HTMLElement): boolean {
@@ -360,6 +366,7 @@ function isFirstMessageInSenderGroup(index: number): boolean {
 
 async function sendMessage() {
   if (
+    isMessagingUnavailable.value ||
     !chatStore.currentChat ||
     !messageTextArea.value?.value ||
     !userStore.principal ||
@@ -525,7 +532,11 @@ onUnmounted(() => {
     </div>
 
     <div class="container pb-4 pt-2 mt-auto" style="max-width: 900px" v-if="chatStore.currentChat">
-      <div v-if="isCurrentRecipientBlocked" class="alert alert-warning py-2" role="alert">
+      <div v-if="isMessagingUnavailable" class="alert alert-info py-2" role="status">
+        Direct messaging is temporarily unavailable while the new encrypted session runtime is
+        being integrated.
+      </div>
+      <div v-else-if="isCurrentRecipientBlocked" class="alert alert-warning py-2" role="alert">
         {{ t('chat.blocking.send-blocked') }}
       </div>
       <div v-else-if="sendError" class="alert alert-danger py-2" role="alert">
@@ -538,14 +549,14 @@ onUnmounted(() => {
           :placeholder="t('chat.message-placeholder')"
           aria-label="Send"
           rows="1"
-          :disabled="isCurrentRecipientBlocked"
+          :disabled="isCurrentRecipientBlocked || isMessagingUnavailable"
           @input="adjustMessageTextAreaHeight"
           @keypress.enter="handleEnterKeyPressed"
         ></textarea>
         <div class="mt-auto">
           <button
             class="btn btn-primary"
-            :disabled="isCurrentRecipientBlocked"
+            :disabled="isCurrentRecipientBlocked || isMessagingUnavailable"
             @click="sendMessage"
           >
             <div style="rotate: 45deg" aria-label="Send">

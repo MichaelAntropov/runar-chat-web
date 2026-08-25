@@ -19,6 +19,10 @@ export const useUserStore = defineStore('user', () => {
   const isAuthenticated = computed<boolean>(() =>
     ['pre-upgrade', 'upgraded'].includes(authStatus.value),
   )
+  const authenticatedDeviceId = computed<string | null>(() => {
+    const token = refreshToken.value || accessToken.value
+    return token ? getDeviceIdFromJwtToken(token) : null
+  })
 
   let refreshingTokenPromise: Promise<void> | null = null // Stores the ongoing refresh promise
   let loggingOutPromise: Promise<void> | null = null
@@ -153,6 +157,7 @@ export const useUserStore = defineStore('user', () => {
 
   return {
     isAuthenticated,
+    authenticatedDeviceId,
     authStatus,
     authUpgradeToken,
     refreshToken,
@@ -194,4 +199,21 @@ function createPrincipalFromJwtToken(token: string): Principal | null {
   }
 
   return newPrincipal
+}
+
+export function getDeviceIdFromJwtToken(token: string): string | null {
+  try {
+    const encodedPayload = token.split('.')[1]
+    if (!encodedPayload) return null
+
+    const normalized = encodedPayload.replaceAll('-', '+').replaceAll('_', '/')
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+    const decoded: unknown = JSON.parse(atob(padded))
+    if (!decoded || typeof decoded !== 'object') return null
+
+    const deviceId = (decoded as Record<string, unknown>).deviceId
+    return typeof deviceId === 'string' && deviceId.length > 0 ? deviceId : null
+  } catch {
+    return null
+  }
 }

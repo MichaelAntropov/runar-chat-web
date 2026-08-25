@@ -111,12 +111,12 @@ watch(
     @logout="logOutFromRecovery"
     @reregister="deviceStore.reregisterDevice"
   />
-  <LoadingOverlay v-if="!deviceStore.isRegistered || deviceStore.isLoading" />
+  <LoadingOverlay v-if="!deviceStore.applicationReady" />
   <DbEncryptionModal
     v-if="dbStore.dbStatus === 'setup-required' || dbStore.dbStatus === 'unlock-required'"
   />
 
-  <div v-if="dbStore.dbStatus == 'ready'" class="d-flex vh-100 overflow-hidden">
+  <div v-if="deviceStore.applicationReady" class="d-flex vh-100 overflow-hidden">
     <div v-if="isMobile" class="w-100 h-100 position-relative overflow-hidden">
       <!-- Here goes mobile friendly logic -->
       <Transition :name="transitionName">

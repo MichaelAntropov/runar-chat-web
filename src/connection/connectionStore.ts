@@ -12,6 +12,7 @@ import {
   type InboundMessage,
 } from '@/chat/types/message/InboundMessage'
 import { deliveryReceiptFromResponse } from '@/chat/types/receipt/DeliveryReceipt'
+import { runtimePolicy } from '@/core/config/runtimePolicy'
 import { useDbStore, type DbStatus } from '@/db/dbStore'
 import { useDeviceStore, type DeviceRegistrationStatus } from '@/device/deviceStore'
 import { usePresenceStore } from '@/presence/presenceStore'
@@ -135,6 +136,7 @@ export const useConnectionStore = defineStore('connection-store', () => {
         oldValues as (boolean | DeviceRegistrationStatus | DbStatus | string | null | undefined)[]
 
       const canConnect =
+        runtimePolicy.legacyDirectMessagingEnabled &&
         isAuthenticated &&
         authStatus === 'upgraded' &&
         registrationStatus === 'registered' &&

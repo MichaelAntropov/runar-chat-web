@@ -5,6 +5,7 @@ import type { SendMessageResponse } from '@/chat/types/message/SendMessageRespon
 import { contactApi } from '@/contacts/contactApi'
 import { useContactsStore } from '@/contacts/contactStore'
 import type { FoundUser } from '@/contacts/types/FindUserResponse'
+import { runtimePolicy } from '@/core/config/runtimePolicy'
 import { parseUtcTimestamp, uint8ArrayToBase64 } from '@/core/utils'
 import { chatStateRepository } from '@/db/repositories/ChatStateRepository'
 import { pendingReadReceiptRepository } from '@/db/repositories/PendingReadReceiptRepository'
@@ -97,6 +98,7 @@ export function openSavedMessagesChat(): Chat | null {
  * @param content The string content to send.
  */
 export async function sendMessageInCurrentChat(content: string): Promise<void> {
+  assertLegacyDirectMessagingEnabled()
   return enqueueRatchetOperation(() => sendMessageInCurrentChatInternal(content))
 }
 
@@ -185,13 +187,18 @@ async function encryptForChatState(
 ): Promise<DeviceMessagePayload> {
   const senderIdEncoded = new TextEncoder().encode(senderId)
   const receiverIdEncoded = new TextEncoder().encode(chatState.userId)
-  const associatedData = new Uint8Array(senderIdEncoded.length + receiverIdEncoded.length)
+  const associatedData: Uint8Array<ArrayBuffer> = new Uint8Array(
+    senderIdEncoded.length + receiverIdEncoded.length,
+  )
   associatedData.set(senderIdEncoded)
   associatedData.set(receiverIdEncoded, senderIdEncoded.length)
+  const plaintext: Uint8Array<ArrayBuffer> = new Uint8Array(
+    new TextEncoder().encode(JSON.stringify(encodedMessage)),
+  )
 
   const encryptResult: RatchetEncryptResult = await ratchetEncrypt(
     chatState,
-    new TextEncoder().encode(JSON.stringify(encodedMessage)),
+    plaintext,
     associatedData,
   )
 
@@ -260,6 +267,7 @@ async function sendEncryptedMessage(
 }
 
 export async function queueReadReceipts(chat: Chat, receipts: ReadReceipt[]): Promise<void> {
+  if (!runtimePolicy.legacyDirectMessagingEnabled) return
   const principalId = useUserStore().principal?.id
   if (
     !principalId ||
@@ -283,6 +291,7 @@ export async function queueReadReceipts(chat: Chat, receipts: ReadReceipt[]): Pr
 }
 
 export async function flushPendingReadReceipts(): Promise<void> {
+  if (!runtimePolicy.legacyDirectMessagingEnabled) return
   if (receiptFlushPromise) {
     receiptFlushRequested = true
     return receiptFlushPromise
@@ -388,6 +397,7 @@ async function flushPendingReadReceiptsInternal(): Promise<void> {
  * Fetches queued delivery receipts and messages, then reconciles or decrypts them.
  */
 export async function fetchAndProcessOfflineEvents() {
+  if (!runtimePolicy.legacyDirectMessagingEnabled) return
   const deviceStore = useDeviceStore()
   if (!deviceStore.deviceId) {
     console.warn('fetchAndProcessOfflineEvents() - No device setup!')
@@ -414,7 +424,14 @@ export async function fetchAndProcessOfflineEvents() {
  * @param msg The inbound message data.
  */
 export function decryptInboundMessageAndPushToChat(msg: InboundMessage): Promise<void> {
+  assertLegacyDirectMessagingEnabled()
   return enqueueRatchetOperation(() => decryptInboundMessageAndPushToChatInternal(msg))
+}
+
+function assertLegacyDirectMessagingEnabled(): void {
+  if (!runtimePolicy.legacyDirectMessagingEnabled) {
+    throw new Error('Legacy direct messaging is disabled while the Sesame runtime is integrated.')
+  }
 }
 
 async function decryptInboundMessageAndPushToChatInternal(msg: InboundMessage): Promise<void> {
