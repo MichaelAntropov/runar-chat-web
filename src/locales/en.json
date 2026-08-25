@@ -203,6 +203,7 @@
   },
   "chat": {
     "message-placeholder": "Type your message...",
+    "start-conversation": "Start conversation...",
     "send-error": "The message could not be sent. Please try again.",
     "date": {
       "today": "Today",

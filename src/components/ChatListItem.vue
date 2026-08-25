@@ -78,7 +78,7 @@ function changeCurrentChat(chatId: string) {
           v-if="!chat.lastMessage"
           class="small text-truncate text-body-secondary m-0 text-body-tertiary fst-italic"
         >
-          {{ 'Start conversation...' }}
+          {{ t('chat.start-conversation') }}
         </p>
         <span
           v-if="chat.unreadCount > 0"
