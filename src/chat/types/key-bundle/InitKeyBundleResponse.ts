@@ -1,7 +1,3 @@
-export interface InitKeyBundleResponse {
-  keyBundles: Array<InitDeviceKeyBundleResponse>
-}
-
 export interface MultiUserInitKeyBundleResponse {
   userKeyBundles: Record<string, Array<InitDeviceKeyBundleResponse>>
 }
@@ -17,10 +13,6 @@ export interface InitDeviceKeyBundleResponse {
 
   oneTimePreKeyId: string | null
   oneTimePreKey: string | null
-}
-
-export interface InitKeyBundle {
-  keyBundles: Array<InitDeviceKeyBundle>
 }
 
 export interface InitDeviceKeyBundle {

@@ -9,9 +9,7 @@ import { deviceApi } from './deviceApi'
 import { getDeviceLabel } from './deviceLabel'
 import { DeviceRegistrationService } from './deviceRegistrationService'
 import { LocalDeviceRepository } from './LocalDeviceRepository'
-import type { KeyPairState } from './types/KeyPairState'
 import type { DeviceBootstrapStatus, DeviceRecoveryStatus, DeviceRegistrationStatus, LocalDeviceKeyMaterial } from './types/localDeviceTypes'
-import type { SignedPreKeyState } from './types/SignedPreKeyState'
 
 export const useDeviceStore = defineStore('device', () => {
   const userStore = useUserStore()
@@ -50,41 +48,6 @@ export const useDeviceStore = defineStore('device', () => {
       default:
         return 'loading'
     }
-  })
-
-  const identityX25519 = computed<KeyPairState>(() => {
-    const identity = localDevice.value?.device.identityX25519
-    return identity
-      ? {
-          id: localDevice.value!.device.deviceId,
-          keyPair: { privateKey: identity.secretKey, publicKey: identity.publicKey },
-          publicKey: localDevice.value!.device.identityX25519PublicKeyBytes,
-        }
-      : { id: null, keyPair: null, publicKey: null }
-  })
-  const identityEd25519 = computed<KeyPairState>(() => {
-    const identity = localDevice.value?.device.identityEd25519
-    return identity
-      ? {
-          id: localDevice.value!.device.deviceId,
-          keyPair: { privateKey: identity.secretKey, publicKey: identity.publicKey },
-          publicKey: localDevice.value!.device.identityEd25519PublicKeyBytes,
-        }
-      : { id: null, keyPair: null, publicKey: null }
-  })
-  const preKey = computed<SignedPreKeyState>(() => {
-    const signedPreKey = localDevice.value?.signedPreKey
-    return signedPreKey
-      ? {
-          id: signedPreKey.id,
-          keyPair: {
-            privateKey: signedPreKey.keyPair.secretKey,
-            publicKey: signedPreKey.keyPair.publicKey,
-          },
-          publicKey: signedPreKey.publicKeyBytes,
-          signature: signedPreKey.signature,
-        }
-      : { id: null, keyPair: null, publicKey: null, signature: null }
   })
 
   watch(
@@ -229,12 +192,9 @@ export const useDeviceStore = defineStore('device', () => {
     bootstrapError,
     bootstrapStatus,
     deviceId,
-    identityEd25519,
-    identityX25519,
     isLoading,
     isRegistered,
     localDevice: computed(() => localDevice.value),
-    preKey,
     recoveryStatus,
     registrationStatus,
     bootstrap,

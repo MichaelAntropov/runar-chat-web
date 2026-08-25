@@ -12,8 +12,6 @@ import type {
 import type {
   InitDeviceKeyBundle,
   InitDeviceKeyBundleResponse,
-  InitKeyBundle,
-  InitKeyBundleResponse,
   MultiUserInitKeyBundleResponse,
 } from '../types/key-bundle/InitKeyBundleResponse'
 import { DeviceSetMismatchError } from '../types/message/DeviceSetMismatchError'
@@ -36,25 +34,6 @@ export const chatApi = {
         ed25519PublicKey: base64ToUint8Array(identityKey.ed25519PublicKey),
       }),
     )
-  },
-
-  async getKeyBundle(userId: string): Promise<InitKeyBundle> {
-    const result = await http.get<InitKeyBundleResponse>(`/api/v1/keys/key-bundle/${userId}`)
-
-    const parsedKeyBundles: InitDeviceKeyBundle[] = result.data.keyBundles.map(
-      (keyBundle: InitDeviceKeyBundleResponse): InitDeviceKeyBundle => ({
-        deviceId: keyBundle.deviceId,
-        x25519IdentityKey: base64ToUint8Array(keyBundle.x25519IdentityKey),
-        ed25519IdentityKey: base64ToUint8Array(keyBundle.ed25519IdentityKey),
-        signedPreKeyId: keyBundle.signedPreKeyId,
-        signedPreKey: base64ToUint8Array(keyBundle.signedPreKey),
-        signedPreKeySignature: base64ToUint8Array(keyBundle.signedPreKeySignature),
-        oneTimePreKeyId: keyBundle.oneTimePreKeyId,
-        oneTimePreKey: keyBundle.oneTimePreKey ? base64ToUint8Array(keyBundle.oneTimePreKey) : null,
-      }),
-    )
-
-    return { keyBundles: parsedKeyBundles }
   },
 
   async getKeyBundles(

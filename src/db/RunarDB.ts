@@ -1,7 +1,6 @@
 import Dexie, { type EntityTable, type Table } from 'dexie'
 import { NON_INDEXED_FIELDS } from 'dexie-encrypted'
 
-import type { ChatState } from '@/chat/types/chat/ChatState'
 import type { StoredMessage } from '@/chat/types/chat/StoredMessage'
 import type { PendingReadReceipt } from '@/chat/types/receipt/PendingReadReceipt'
 import type { LocalDevice, LocalOneTimePreKey, LocalSignedPreKey } from '@/device/entities/localDeviceEntities'
@@ -21,7 +20,6 @@ export const SESAME_SESSIONS_STORE = 'sesame-sessions'
 export const MESSAGES_STORE = 'messages'
 export const CHATS_STORE = 'chats'
 export const CONTACTS_STORE = 'contacts'
-export const CHAT_STATES_STORE = 'chat-states'
 export const DB_ENCRYPTION_STORE = 'db-encryption-state'
 export const DB_ENCRYPTION_SETTINGS = '_encryptionSettings'
 export const DEVICE_SETTINGS_STORE = 'device-settings'
@@ -33,7 +31,7 @@ export const CHATS_STORE_KEY = 'idKey'
 export const CONTACTS_STORE_KEY = 'idKey'
 export const DEVICE_SETTINGS_STORE_KEY = 'deviceSettings'
 
-export const DB_VERSION = 5
+export const DB_VERSION = 6
 
 export const DB_SCHEMA = {
   [LOCAL_DEVICE_STORE]: '',
@@ -45,7 +43,6 @@ export const DB_SCHEMA = {
   [MESSAGES_STORE]: 'id, chatId, senderId, recipientId, createdAt, [chatId+createdAt]',
   [CHATS_STORE]: '',
   [CONTACTS_STORE]: '',
-  [CHAT_STATES_STORE]: 'deviceId, userId',
   [DB_ENCRYPTION_STORE]: '',
   [DB_ENCRYPTION_SETTINGS]: '++id', // Specifically to shadow dexie encryption settings table that is used in case of enabled encryption
   [DEVICE_SETTINGS_STORE]: 'id',
@@ -69,7 +66,6 @@ export class RunarDb extends Dexie {
   [MESSAGES_STORE]!: EntityTable<StoredMessage, 'id'>;
   [CHATS_STORE]!: Table<unknown, string>;
   [CONTACTS_STORE]!: Table<unknown, string>;
-  [CHAT_STATES_STORE]!: EntityTable<ChatState, 'deviceId'>;
   [DB_ENCRYPTION_STORE]!: Table<DbEncryptionState, string>;
   [DB_ENCRYPTION_SETTINGS]!: Table<unknown, 'id'>;
   [DEVICE_SETTINGS_STORE]!: EntityTable<DeviceSettings, 'id'>;

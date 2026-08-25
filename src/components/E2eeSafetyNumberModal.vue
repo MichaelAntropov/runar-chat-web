@@ -118,16 +118,14 @@ async function copySafetyNumber(event: MouseEvent): Promise<void> {
 }
 
 function containsCurrentDeviceIdentity(identityKeys: readonly IdentityKey[]): boolean {
-  const deviceId = deviceStore.deviceId
-  const x25519PublicKey = deviceStore.identityX25519.publicKey
-  const ed25519PublicKey = deviceStore.identityEd25519.publicKey
-  if (!deviceId || !x25519PublicKey || !ed25519PublicKey) return false
+  const device = deviceStore.localDevice?.device
+  if (!device) return false
 
   return identityKeys.some(
     (identityKey) =>
-      identityKey.deviceId === deviceId &&
-      bytesEqual(identityKey.x25519PublicKey, x25519PublicKey) &&
-      bytesEqual(identityKey.ed25519PublicKey, ed25519PublicKey),
+      identityKey.deviceId === device.deviceId &&
+      bytesEqual(identityKey.x25519PublicKey, device.identityX25519PublicKeyBytes) &&
+      bytesEqual(identityKey.ed25519PublicKey, device.identityEd25519PublicKeyBytes),
   )
 }
 
