@@ -3,7 +3,7 @@ import { Base64 } from 'js-base64'
 import { generateInitialDeviceKeyMaterial } from '@/crypto/x3dh/x3dh'
 import type { InitialDeviceKeyMaterial } from '@/crypto/x3dh/x3dhTypes'
 
-import type { LocalDevice } from './types/LocalDevice'
+import type { LocalDeviceKeyMaterial } from './types/LocalDeviceKeyMaterial'
 import type { RegisterDeviceRequest } from './types/RegisterDeviceRequest'
 import type { RegisterDeviceResponse } from './types/RegisterDeviceResponses'
 
@@ -26,7 +26,7 @@ export class DeviceRegistrationService {
     this.generateKeyMaterial = dependencies.generateKeyMaterial ?? generateInitialDeviceKeyMaterial
   }
 
-  async register(options: RegisterLocalDeviceOptions): Promise<LocalDevice> {
+  async register(options: RegisterLocalDeviceOptions): Promise<LocalDeviceKeyMaterial> {
     const material = await this.generateKeyMaterial({
       userId: options.userId,
       oneTimePreKeyCount: INITIAL_ONE_TIME_PRE_KEY_COUNT,
@@ -44,18 +44,22 @@ export class DeviceRegistrationService {
     validateRegistrationResponse(response, material.oneTimePreKeys.length)
 
     return {
-      deviceId: response.deviceId,
-      userId: options.userId,
-      identityX25519: material.identityX25519,
-      identityX25519PublicKeyBytes: exported.identityX25519,
-      identityEd25519: material.identityEd25519,
-      identityEd25519PublicKeyBytes: exported.identityEd25519,
+      device: {
+        deviceId: response.deviceId,
+        userId: options.userId,
+        activeSignedPreKeyId: response.signedPreKeyId,
+        identityX25519: material.identityX25519,
+        identityX25519PublicKeyBytes: exported.identityX25519,
+        identityEd25519: material.identityEd25519,
+        identityEd25519PublicKeyBytes: exported.identityEd25519,
+      },
       signedPreKey: {
         id: response.signedPreKeyId,
         keyPair: material.signedPreKey.keyPair,
         publicKeyBytes: exported.signedPreKey,
         signature: material.signedPreKey.signature,
         createdAt: parseServerDate(response.signedPreKeyCreatedAt, 'signed pre-key'),
+        retiredAt: null,
       },
       oneTimePreKeys: material.oneTimePreKeys.map((keyPair, index) => ({
         id: response.oneTimePreKeys[index].id,

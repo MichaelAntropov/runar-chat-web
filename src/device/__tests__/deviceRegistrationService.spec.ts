@@ -41,10 +41,13 @@ describe('DeviceRegistrationService', () => {
     expect(Base64.toUint8Array(request.signedPublicPreKey)).toHaveLength(32)
     expect(Base64.toUint8Array(request.preKeySignature)).toHaveLength(64)
     expect(request.oneTimePublicPreKeys).toHaveLength(INITIAL_ONE_TIME_PRE_KEY_COUNT)
-    expect(device.deviceId).toBe(DEVICE_ID)
+    expect(device.device.deviceId).toBe(DEVICE_ID)
+    expect(device.device.activeSignedPreKeyId).toBe(SIGNED_PRE_KEY_ID)
     expect(device.signedPreKey.id).toBe(SIGNED_PRE_KEY_ID)
-    expect(device.signedPreKey.id).not.toBe(device.deviceId)
+    expect(device.signedPreKey.id).not.toBe(device.device.deviceId)
     expect(device.signedPreKey.createdAt).toEqual(new Date(CREATED_AT))
+    expect(device.signedPreKey.retiredAt).toBeNull()
+    expect(device.oneTimePreKeys).toHaveLength(INITIAL_ONE_TIME_PRE_KEY_COUNT)
   })
 
   it('rejects a response that cannot be mapped to the generated one-time pre-keys', async () => {

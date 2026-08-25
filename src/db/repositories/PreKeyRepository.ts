@@ -1,5 +1,5 @@
 import type { OneTimePreKeyState } from '@/device/types/OneTimePreKeyState'
-import { PRE_KEYS_STORE } from '../RunarDB'
+import { LOCAL_ONE_TIME_PRE_KEYS_STORE } from '../RunarDB'
 import { useDbStore } from '../dbStore'
 
 export class PreKeyRepository {
@@ -8,11 +8,22 @@ export class PreKeyRepository {
   }
 
   async getPreKeyById(preKeyId: string): Promise<OneTimePreKeyState | undefined> {
-    return this.db[PRE_KEYS_STORE].get(preKeyId)
+    const key = await this.db[LOCAL_ONE_TIME_PRE_KEYS_STORE].get(preKeyId)
+    if (!key) return undefined
+
+    return {
+      id: key.id,
+      createdAt: key.createdAt,
+      keyPair: {
+        privateKey: key.keyPair.secretKey,
+        publicKey: key.keyPair.publicKey,
+      },
+      publicKey: key.publicKeyBytes,
+    }
   }
 
   async deletePreKeyById(preKeyId: string): Promise<void> {
-    return this.db[PRE_KEYS_STORE].delete(preKeyId)
+    return this.db[LOCAL_ONE_TIME_PRE_KEYS_STORE].delete(preKeyId)
   }
 }
 

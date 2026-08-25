@@ -1,6 +1,6 @@
-import type { LocalDevice } from './LocalDevice'
+import type { LocalDeviceKeyMaterial } from './LocalDeviceKeyMaterial'
 
 export type LocalDeviceLoadResult =
-  | { status: 'found'; device: LocalDevice }
+  | { status: 'found'; keyMaterial: LocalDeviceKeyMaterial }
   | { status: 'not-found' }
   | { status: 'invalid'; reason: string }

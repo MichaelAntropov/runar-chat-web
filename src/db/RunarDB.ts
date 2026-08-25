@@ -5,15 +5,17 @@ import type { ChatState } from '@/chat/types/chat/ChatState'
 import type { StoredMessage } from '@/chat/types/chat/StoredMessage'
 import type { PendingReadReceipt } from '@/chat/types/receipt/PendingReadReceipt'
 import type { LocalDevice } from '@/device/types/LocalDevice'
-import type { OneTimePreKeyState } from '@/device/types/OneTimePreKeyState'
+import type { LocalOneTimePreKey } from '@/device/types/LocalOneTimePreKey'
+import type { LocalSignedPreKey } from '@/device/types/LocalSignedPreKey'
 import type { DeviceSettings } from '@/settings/types/DeviceSettings'
 
 import type { DbEncryptionState } from './types/DbEncryptionState'
 
 const DB_SCHEMA_PREFIX = 'runar-db-'
 
-export const KEYS_STORE = 'keys'
-export const PRE_KEYS_STORE = 'pre-keys'
+export const LOCAL_DEVICE_STORE = 'local-device'
+export const LOCAL_SIGNED_PRE_KEYS_STORE = 'local-signed-pre-keys'
+export const LOCAL_ONE_TIME_PRE_KEYS_STORE = 'local-one-time-pre-keys'
 export const MESSAGES_STORE = 'messages'
 export const CHATS_STORE = 'chats'
 export const CONTACTS_STORE = 'contacts'
@@ -23,17 +25,18 @@ export const DB_ENCRYPTION_SETTINGS = '_encryptionSettings'
 export const DEVICE_SETTINGS_STORE = 'device-settings'
 export const PENDING_READ_RECEIPTS_STORE = 'pending-read-receipts'
 
-export const IDENTITY_KEY_BUNDLE_KEY = 'idKey'
+export const LOCAL_DEVICE_KEY = 'localDevice'
 export const DB_ENCRYPTION_STORE_KEY = 'idKey'
 export const CHATS_STORE_KEY = 'idKey'
 export const CONTACTS_STORE_KEY = 'idKey'
 export const DEVICE_SETTINGS_STORE_KEY = 'deviceSettings'
 
-export const DB_VERSION = 4
+export const DB_VERSION = 5
 
 export const DB_SCHEMA = {
-  [KEYS_STORE]: ', deviceId',
-  [PRE_KEYS_STORE]: 'id, createdAt',
+  [LOCAL_DEVICE_STORE]: '',
+  [LOCAL_SIGNED_PRE_KEYS_STORE]: 'id, createdAt, retiredAt',
+  [LOCAL_ONE_TIME_PRE_KEYS_STORE]: 'id, createdAt',
   [MESSAGES_STORE]: 'id, chatId, senderId, recipientId, createdAt, [chatId+createdAt]',
   [CHATS_STORE]: '',
   [CONTACTS_STORE]: '',
@@ -52,8 +55,9 @@ export const ENCRYPTED_STORES = {
 }
 
 export class RunarDb extends Dexie {
-  [KEYS_STORE]!: Table<LocalDevice, string>;
-  [PRE_KEYS_STORE]!: EntityTable<OneTimePreKeyState, 'id'>;
+  [LOCAL_DEVICE_STORE]!: Table<LocalDevice, string>;
+  [LOCAL_SIGNED_PRE_KEYS_STORE]!: EntityTable<LocalSignedPreKey, 'id'>;
+  [LOCAL_ONE_TIME_PRE_KEYS_STORE]!: EntityTable<LocalOneTimePreKey, 'id'>;
   [MESSAGES_STORE]!: EntityTable<StoredMessage, 'id'>;
   [CHATS_STORE]!: Table<unknown, string>;
   [CONTACTS_STORE]!: Table<unknown, string>;
@@ -66,4 +70,8 @@ export class RunarDb extends Dexie {
   constructor(dbId: string, databaseName?: string) {
     super(databaseName ?? DB_SCHEMA_PREFIX + dbId)
   }
+}
+
+export function configureRunarDbSchema(db: RunarDb): void {
+  db.version(DB_VERSION).stores(DB_SCHEMA)
 }

@@ -1,6 +1,13 @@
 import { defineStore } from 'pinia'
-import { DB_ENCRYPTION_STORE, DB_ENCRYPTION_STORE_KEY, DB_SCHEMA, DB_VERSION, ENCRYPTED_STORES, RunarDb } from './RunarDB'
-import { computed, ref, watch, type Ref } from 'vue'
+import {
+  configureRunarDbSchema,
+  DB_ENCRYPTION_STORE,
+  DB_ENCRYPTION_STORE_KEY,
+  DB_SCHEMA,
+  ENCRYPTED_STORES,
+  RunarDb,
+} from './RunarDB'
+import { computed, ref, shallowRef, watch, type Ref } from 'vue'
 import { useUserStore } from '@/user/userStore'
 import { applyEncryptionMiddleware } from 'dexie-encrypted'
 import type { IndexableType } from 'dexie'
@@ -10,7 +17,7 @@ import { decryptDEK, encryptDEK } from './crypto/dek'
 export type DbStatus = 'initializing' | 'setup-required' | 'unlock-required' | 'ready' | 'error'
 
 export const useDbStore = defineStore('db', () => {
-  const dbInstance: Ref<RunarDb | null> = ref(null)
+  const dbInstance: Ref<RunarDb | null> = shallowRef(null)
   const dbStatus: Ref<DbStatus | null> = ref('initializing')
   const dek: Ref<Uint8Array<ArrayBuffer> | null> = ref(null)
 
@@ -31,7 +38,7 @@ export const useDbStore = defineStore('db', () => {
     if (!userId) return
 
     const discoveryDb = new RunarDb(userId)
-    discoveryDb.version(DB_VERSION).stores(DB_SCHEMA)
+    configureRunarDbSchema(discoveryDb)
 
     try {
       const state = await discoveryDb.table(DB_ENCRYPTION_STORE).get(DB_ENCRYPTION_STORE_KEY)
@@ -43,6 +50,7 @@ export const useDbStore = defineStore('db', () => {
         dbStatus.value = 'unlock-required'
       } else {
         await startDb(null) // Start without encryption
+        dbStatus.value = 'ready'
       }
     } catch (e) {
       console.error('Failed to initialize DB', e)
@@ -65,10 +73,10 @@ export const useDbStore = defineStore('db', () => {
       })
     }
 
-    veilDb.version(DB_VERSION).stores(DB_SCHEMA)
+    configureRunarDbSchema(veilDb)
+    await veilDb.open()
 
     dbInstance.value = veilDb
-    dbStatus.value = 'ready'
   }
 
   async function setupEncryption(pin: string | null) {
@@ -82,6 +90,7 @@ export const useDbStore = defineStore('db', () => {
         dekSalt: null,
         iv: null,
       })
+      dbStatus.value = 'ready'
     } else {
       // Generate random DEK and encrypt
       const dek = window.crypto.getRandomValues(new Uint8Array(32))
@@ -95,6 +104,7 @@ export const useDbStore = defineStore('db', () => {
         encryptedDek: result.encryptedDek,
         iv: result.iv,
       })
+      dbStatus.value = 'ready'
     }
   }
 
@@ -103,13 +113,14 @@ export const useDbStore = defineStore('db', () => {
     if (!userId) return
 
     const discoveryDb = new RunarDb(userId)
-    discoveryDb.version(DB_VERSION).stores(DB_SCHEMA)
+    configureRunarDbSchema(discoveryDb)
     const state = await discoveryDb.table(DB_ENCRYPTION_STORE).get(DB_ENCRYPTION_STORE_KEY)
     await discoveryDb.close()
 
     const key = await decryptDEK(state!.encryptedDek!, pin, state!.dekSalt!, state!.iv!)
 
     await startDb(key)
+    dbStatus.value = 'ready'
   }
 
   async function archiveCurrentDatabase(): Promise<void> {
@@ -137,7 +148,7 @@ export const useDbStore = defineStore('db', () => {
         })
       }
 
-      archiveDb.version(DB_VERSION).stores(DB_SCHEMA)
+      configureRunarDbSchema(archiveDb)
       await sourceDb.open()
       await archiveDb.open()
 

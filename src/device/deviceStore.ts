@@ -11,7 +11,7 @@ import { DeviceRegistrationService } from './deviceRegistrationService'
 import { LocalDeviceRepository } from './LocalDeviceRepository'
 import type { DeviceBootstrapStatus } from './types/DeviceBootstrapStatus'
 import type { KeyPairState } from './types/KeyPairState'
-import type { LocalDevice } from './types/LocalDevice'
+import type { LocalDeviceKeyMaterial } from './types/LocalDeviceKeyMaterial'
 import type { SignedPreKeyState } from './types/SignedPreKeyState'
 
 export type DeviceRegistrationStatus =
@@ -28,7 +28,7 @@ export const useDeviceStore = defineStore('device', () => {
   const userStore = useUserStore()
   const dbStore = useDbStore()
 
-  const localDevice: Ref<LocalDevice | null> = ref(null)
+  const localDevice: Ref<LocalDeviceKeyMaterial | null> = ref(null)
   const bootstrapStatus: Ref<DeviceBootstrapStatus> = ref('idle')
   const recoveryStatus: Ref<DeviceRecoveryStatus> = ref('none')
   const bootstrapError: Ref<string | null> = ref(null)
@@ -36,7 +36,7 @@ export const useDeviceStore = defineStore('device', () => {
   let bootstrapPromise: Promise<void> | null = null
   let bootstrapGeneration = 0
 
-  const deviceId = computed<string | null>(() => localDevice.value?.deviceId ?? null)
+  const deviceId = computed<string | null>(() => localDevice.value?.device.deviceId ?? null)
   const isRegistered = computed<boolean>(
     () => bootstrapStatus.value === 'ready' && !!deviceId.value
   )
@@ -77,22 +77,22 @@ export const useDeviceStore = defineStore('device', () => {
   })
 
   const identityX25519 = computed<KeyPairState>(() => {
-    const identity = localDevice.value?.identityX25519
+    const identity = localDevice.value?.device.identityX25519
     return identity
       ? {
-          id: localDevice.value!.deviceId,
+          id: localDevice.value!.device.deviceId,
           keyPair: { privateKey: identity.secretKey, publicKey: identity.publicKey },
-          publicKey: localDevice.value!.identityX25519PublicKeyBytes,
+          publicKey: localDevice.value!.device.identityX25519PublicKeyBytes,
         }
       : { id: null, keyPair: null, publicKey: null }
   })
   const identityEd25519 = computed<KeyPairState>(() => {
-    const identity = localDevice.value?.identityEd25519
+    const identity = localDevice.value?.device.identityEd25519
     return identity
       ? {
-          id: localDevice.value!.deviceId,
+          id: localDevice.value!.device.deviceId,
           keyPair: { privateKey: identity.secretKey, publicKey: identity.publicKey },
-          publicKey: localDevice.value!.identityEd25519PublicKeyBytes,
+          publicKey: localDevice.value!.device.identityEd25519PublicKeyBytes,
         }
       : { id: null, keyPair: null, publicKey: null }
   })
@@ -174,10 +174,10 @@ export const useDeviceStore = defineStore('device', () => {
       if (generation !== bootstrapGeneration) return
 
       bootstrapStatus.value = 'persisting'
-      await repository.save(registeredDevice)
+      await repository.saveRegistration(registeredDevice)
       localDevice.value = registeredDevice
     } else {
-      localDevice.value = result.device
+      localDevice.value = result.keyMaterial
     }
 
     await finishAuthentication(generation)
@@ -190,7 +190,7 @@ export const useDeviceStore = defineStore('device', () => {
     if (userStore.authStatus === 'pre-upgrade') {
       bootstrapStatus.value = 'upgrading-auth'
       try {
-        await userStore.upgradeAuth(device.deviceId)
+        await userStore.upgradeAuth(device.device.deviceId)
       } catch (error: unknown) {
         if (error instanceof StoredDeviceUnavailableError) {
           requireRecovery('The server no longer recognizes this local device.')
@@ -201,7 +201,7 @@ export const useDeviceStore = defineStore('device', () => {
     }
 
     if (generation !== bootstrapGeneration) return
-    if (userStore.authenticatedDeviceId !== device.deviceId) {
+    if (userStore.authenticatedDeviceId !== device.device.deviceId) {
       requireRecovery('The authenticated session belongs to a different local device.')
       return
     }

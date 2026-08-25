@@ -1,26 +1,87 @@
 import type { RunarDb } from '@/db/RunarDB'
-import { IDENTITY_KEY_BUNDLE_KEY, KEYS_STORE } from '@/db/RunarDB'
+import {
+  LOCAL_DEVICE_KEY,
+  LOCAL_DEVICE_STORE,
+  LOCAL_ONE_TIME_PRE_KEYS_STORE,
+  LOCAL_SIGNED_PRE_KEYS_STORE,
+} from '@/db/RunarDB'
 
 import type { LocalDevice } from './types/LocalDevice'
+import type { LocalDeviceKeyMaterial } from './types/LocalDeviceKeyMaterial'
 import type { LocalDeviceLoadResult } from './types/LocalDeviceLoadResult'
+import type { LocalOneTimePreKey } from './types/LocalOneTimePreKey'
+import type { LocalSignedPreKey } from './types/LocalSignedPreKey'
 
 export class LocalDeviceRepository {
   constructor(private readonly db: RunarDb) {}
 
   async load(userId: string): Promise<LocalDeviceLoadResult> {
-    const value: unknown = await this.db[KEYS_STORE].get(IDENTITY_KEY_BUNDLE_KEY)
+    const value: unknown = await this.db[LOCAL_DEVICE_STORE].get(LOCAL_DEVICE_KEY)
     if (value === undefined) return { status: 'not-found' }
+    if (!isLocalDevice(value, userId)) return invalidLocalDeviceResult()
 
-    if (!isLocalDevice(value, userId)) {
-      return { status: 'invalid', reason: 'The stored local-device record is incomplete or stale.' }
+    const [signedPreKeyValue, oneTimePreKeyValues] = await Promise.all([
+      this.db[LOCAL_SIGNED_PRE_KEYS_STORE].get(value.activeSignedPreKeyId),
+      this.db[LOCAL_ONE_TIME_PRE_KEYS_STORE].toArray(),
+    ])
+
+    if (
+      !isLocalSignedPreKey(signedPreKeyValue) ||
+      oneTimePreKeyValues.some((key) => !isLocalOneTimePreKey(key))
+    ) {
+      return invalidLocalDeviceResult()
     }
 
-    return { status: 'found', device: value }
+    return {
+      status: 'found',
+      keyMaterial: {
+        device: value,
+        signedPreKey: signedPreKeyValue,
+        oneTimePreKeys: oneTimePreKeyValues,
+      },
+    }
   }
 
-  async save(device: LocalDevice): Promise<void> {
-    await this.db[KEYS_STORE].put(device, IDENTITY_KEY_BUNDLE_KEY)
+  async saveRegistration(keyMaterial: LocalDeviceKeyMaterial): Promise<void> {
+    const { device, oneTimePreKeys, signedPreKey } = keyMaterial
+    if (device.activeSignedPreKeyId !== signedPreKey.id) {
+      throw new Error('The local device must reference the signed pre-key being registered.')
+    }
+
+    await this.db.transaction(
+      'rw',
+      this.db[LOCAL_DEVICE_STORE],
+      this.db[LOCAL_SIGNED_PRE_KEYS_STORE],
+      this.db[LOCAL_ONE_TIME_PRE_KEYS_STORE],
+      async () => {
+        await this.db[LOCAL_DEVICE_STORE].add(device, LOCAL_DEVICE_KEY)
+        await this.db[LOCAL_SIGNED_PRE_KEYS_STORE].add(signedPreKey)
+        await this.db[LOCAL_ONE_TIME_PRE_KEYS_STORE].bulkAdd(oneTimePreKeys)
+      },
+    )
   }
+
+  async getSignedPreKey(id: string): Promise<LocalSignedPreKey | undefined> {
+    return this.db[LOCAL_SIGNED_PRE_KEYS_STORE].get(id)
+  }
+
+  async getOneTimePreKey(id: string): Promise<LocalOneTimePreKey | undefined> {
+    return this.db[LOCAL_ONE_TIME_PRE_KEYS_STORE].get(id)
+  }
+
+  async consumeOneTimePreKey(id: string): Promise<LocalOneTimePreKey | undefined> {
+    return this.db.transaction('rw', this.db[LOCAL_ONE_TIME_PRE_KEYS_STORE], async () => {
+      const key = await this.db[LOCAL_ONE_TIME_PRE_KEYS_STORE].get(id)
+      if (!key) return undefined
+
+      await this.db[LOCAL_ONE_TIME_PRE_KEYS_STORE].delete(id)
+      return key
+    })
+  }
+}
+
+function invalidLocalDeviceResult(): LocalDeviceLoadResult {
+  return { status: 'invalid', reason: 'The stored local-device key material is incomplete.' }
 }
 
 function isLocalDevice(value: unknown, userId: string): value is LocalDevice {
@@ -31,24 +92,40 @@ function isLocalDevice(value: unknown, userId: string): value is LocalDevice {
     typeof device.deviceId === 'string' &&
     device.deviceId.length > 0 &&
     device.userId === userId &&
+    typeof device.activeSignedPreKeyId === 'string' &&
+    device.activeSignedPreKeyId.length > 0 &&
     isKeyPair(device.identityX25519) &&
     device.identityX25519PublicKeyBytes instanceof Uint8Array &&
     isKeyPair(device.identityEd25519) &&
-    device.identityEd25519PublicKeyBytes instanceof Uint8Array &&
-    !!device.signedPreKey &&
-    typeof device.signedPreKey.id === 'string' &&
-    isKeyPair(device.signedPreKey.keyPair) &&
-    device.signedPreKey.publicKeyBytes instanceof Uint8Array &&
-    device.signedPreKey.signature instanceof Uint8Array &&
-    isValidDate(device.signedPreKey.createdAt) &&
-    Array.isArray(device.oneTimePreKeys) &&
-    device.oneTimePreKeys.every(
-      (key) =>
-        typeof key.id === 'string' &&
-        isKeyPair(key.keyPair) &&
-        key.publicKeyBytes instanceof Uint8Array &&
-        isValidDate(key.createdAt)
-    )
+    device.identityEd25519PublicKeyBytes instanceof Uint8Array
+  )
+}
+
+function isLocalSignedPreKey(value: unknown): value is LocalSignedPreKey {
+  if (!value || typeof value !== 'object') return false
+
+  const key = value as Partial<LocalSignedPreKey>
+  return (
+    typeof key.id === 'string' &&
+    key.id.length > 0 &&
+    isKeyPair(key.keyPair) &&
+    key.publicKeyBytes instanceof Uint8Array &&
+    key.signature instanceof Uint8Array &&
+    isValidDate(key.createdAt) &&
+    (key.retiredAt === null || isValidDate(key.retiredAt))
+  )
+}
+
+function isLocalOneTimePreKey(value: unknown): value is LocalOneTimePreKey {
+  if (!value || typeof value !== 'object') return false
+
+  const key = value as Partial<LocalOneTimePreKey>
+  return (
+    typeof key.id === 'string' &&
+    key.id.length > 0 &&
+    isKeyPair(key.keyPair) &&
+    key.publicKeyBytes instanceof Uint8Array &&
+    isValidDate(key.createdAt)
   )
 }
 
