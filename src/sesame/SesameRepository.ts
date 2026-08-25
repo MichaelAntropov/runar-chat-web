@@ -37,6 +37,19 @@ export class SesameRepository<SessionState, InitiationData = never> {
     previous: SesameUserProjection<SessionState, InitiationData> | null,
     nextUserRecord: SesameUserRecord<SessionState, InitiationData>
   ): Promise<SesameUserProjection<SessionState, InitiationData>> {
+    return this.db.transaction('rw', this.db[SESAME_USERS_STORE], this.db[SESAME_DEVICES_STORE], this.db[SESAME_SESSIONS_STORE], () =>
+      this.saveUserRecordInCurrentTransaction(previous, nextUserRecord)
+    )
+  }
+
+  /**
+   * Commits a projection using the caller's active Dexie transaction.
+   * The transaction must include all three Sesame stores.
+   */
+  async saveUserRecordInCurrentTransaction(
+    previous: SesameUserProjection<SessionState, InitiationData> | null,
+    nextUserRecord: SesameUserRecord<SessionState, InitiationData>
+  ): Promise<SesameUserProjection<SessionState, InitiationData>> {
     if (previous !== null && previous.userRecord.userId !== nextUserRecord.userId) {
       throw new SesameInvalidStateError('Cannot change the UserID of a Sesame projection')
     }
@@ -47,45 +60,35 @@ export class SesameRepository<SessionState, InitiationData = never> {
     const nextDeviceRows = toStoredDevices(nextUserRecord)
     const nextSessionRows = toStoredSessions(nextUserRecord)
 
-    const nextEntityVersion = await this.db.transaction(
-      'rw',
-      this.db[SESAME_USERS_STORE],
-      this.db[SESAME_DEVICES_STORE],
-      this.db[SESAME_SESSIONS_STORE],
-      async () => {
-        const currentUser = await this.db[SESAME_USERS_STORE].get(userId)
-        assertExpectedEntityVersion(userId, currentUser, previous?.entityVersion ?? null)
+    const currentUser = await this.db[SESAME_USERS_STORE].get(userId)
+    assertExpectedEntityVersion(userId, currentUser, previous?.entityVersion ?? null)
 
-        const entityVersion = (currentUser?.entityVersion ?? 0) + 1
-        await this.db[SESAME_USERS_STORE].put({
-          userId,
-          staleSince: nextUserRecord.staleSince,
-          entityVersion,
-        })
+    const nextEntityVersion = (currentUser?.entityVersion ?? 0) + 1
+    await this.db[SESAME_USERS_STORE].put({
+      userId,
+      staleSince: nextUserRecord.staleSince,
+      entityVersion: nextEntityVersion,
+    })
 
-        const removedSessionIds = difference(previousSessionRows.keys(), nextSessionRows)
-        if (removedSessionIds.length > 0) {
-          await this.db[SESAME_SESSIONS_STORE].bulkDelete(removedSessionIds)
-        }
+    const removedSessionIds = difference(previousSessionRows.keys(), nextSessionRows)
+    if (removedSessionIds.length > 0) {
+      await this.db[SESAME_SESSIONS_STORE].bulkDelete(removedSessionIds)
+    }
 
-        const removedDeviceKeys = difference(previousDeviceRows.keys(), nextDeviceRows).map((deviceId): [string, string] => [userId, deviceId])
-        if (removedDeviceKeys.length > 0) {
-          await this.db[SESAME_DEVICES_STORE].bulkDelete(removedDeviceKeys)
-        }
+    const removedDeviceKeys = difference(previousDeviceRows.keys(), nextDeviceRows).map((deviceId): [string, string] => [userId, deviceId])
+    if (removedDeviceKeys.length > 0) {
+      await this.db[SESAME_DEVICES_STORE].bulkDelete(removedDeviceKeys)
+    }
 
-        const changedDeviceRows = [...nextDeviceRows.values()].filter((row) => !equalStoredDevice(previousDeviceRows.get(row.deviceId), row))
-        if (changedDeviceRows.length > 0) {
-          await this.db[SESAME_DEVICES_STORE].bulkPut(changedDeviceRows)
-        }
+    const changedDeviceRows = [...nextDeviceRows.values()].filter((row) => !equalStoredDevice(previousDeviceRows.get(row.deviceId), row))
+    if (changedDeviceRows.length > 0) {
+      await this.db[SESAME_DEVICES_STORE].bulkPut(changedDeviceRows)
+    }
 
-        const changedSessionRows = [...nextSessionRows.values()].filter((row) => !equalStoredSession(previousSessionRows.get(row.sessionId), row))
-        if (changedSessionRows.length > 0) {
-          await this.db[SESAME_SESSIONS_STORE].bulkPut(changedSessionRows as SesameSession[])
-        }
-
-        return entityVersion
-      }
-    )
+    const changedSessionRows = [...nextSessionRows.values()].filter((row) => !equalStoredSession(previousSessionRows.get(row.sessionId), row))
+    if (changedSessionRows.length > 0) {
+      await this.db[SESAME_SESSIONS_STORE].bulkPut(changedSessionRows as SesameSession[])
+    }
 
     return { entityVersion: nextEntityVersion, userRecord: nextUserRecord }
   }

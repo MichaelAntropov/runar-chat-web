@@ -100,6 +100,7 @@ describe('Sesame receive processing', () => {
     )
 
     expect(result?.sessionId).toBe('session-a')
+    expect(result?.sessionCreated).toBe(false)
     expect(result?.userRecord.devices[0].activeSession).toMatchObject({
       sessionId: 'session-a',
       state: { step: 2 },
@@ -125,6 +126,7 @@ describe('Sesame receive processing', () => {
     )
 
     expect(result?.plaintext).toEqual(message.payload)
+    expect(result?.sessionCreated).toBe(true)
     expect(result?.deviceChange).toEqual({ deviceId: 'device-1', type: 'added' })
     expect(result?.userRecord.devices[0].activeSession).toMatchObject({
       sessionId: 'received-session',

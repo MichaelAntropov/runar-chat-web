@@ -40,6 +40,7 @@ export interface SesameDecryptionResult<SessionState, InitiationData> {
   readonly userRecord: SesameUserRecord<SessionState, InitiationData>
   readonly plaintext: Uint8Array<ArrayBuffer>
   readonly sessionId: string
+  readonly sessionCreated: boolean
   readonly deviceChange: SesameDeviceSetChange | null
 }
 
@@ -133,6 +134,7 @@ export async function decryptSesameMessage<SessionState, InitiationData, Encrypt
         ),
         plaintext: decrypted.result.plaintext,
         sessionId: decrypted.sessionId,
+        sessionCreated: false,
         deviceChange: null,
       }
     }
@@ -166,6 +168,7 @@ export async function decryptSesameMessage<SessionState, InitiationData, Encrypt
     ),
     plaintext: decrypted.plaintext,
     sessionId: session.sessionId,
+    sessionCreated: true,
     deviceChange: updated.change,
   }
 }
