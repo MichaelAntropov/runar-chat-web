@@ -44,10 +44,11 @@ export const chatApi = {
     const parsedKeyBundles: InitDeviceKeyBundle[] = result.data.keyBundles.map(
       (keyBundle: InitDeviceKeyBundleResponse): InitDeviceKeyBundle => ({
         deviceId: keyBundle.deviceId,
-        x25519identityKey: base64ToUint8Array(keyBundle.x25519identityKey),
-        ed25519identityKey: base64ToUint8Array(keyBundle.ed25519identityKey),
-        preKey: base64ToUint8Array(keyBundle.preKey),
-        preKeySignature: base64ToUint8Array(keyBundle.preKeySignature),
+        x25519IdentityKey: base64ToUint8Array(keyBundle.x25519IdentityKey),
+        ed25519IdentityKey: base64ToUint8Array(keyBundle.ed25519IdentityKey),
+        signedPreKeyId: keyBundle.signedPreKeyId,
+        signedPreKey: base64ToUint8Array(keyBundle.signedPreKey),
+        signedPreKeySignature: base64ToUint8Array(keyBundle.signedPreKeySignature),
         oneTimePreKeyId: keyBundle.oneTimePreKeyId,
         oneTimePreKey: keyBundle.oneTimePreKey ? base64ToUint8Array(keyBundle.oneTimePreKey) : null,
       }),
@@ -68,10 +69,11 @@ export const chatApi = {
     for (const [userId, rawBundles] of Object.entries(result.data.userKeyBundles)) {
       const parsedKeyBundles = rawBundles.map((keyBundle: InitDeviceKeyBundleResponse) => ({
         deviceId: keyBundle.deviceId,
-        x25519identityKey: base64ToUint8Array(keyBundle.x25519identityKey),
-        ed25519identityKey: base64ToUint8Array(keyBundle.ed25519identityKey),
-        preKey: base64ToUint8Array(keyBundle.preKey),
-        preKeySignature: base64ToUint8Array(keyBundle.preKeySignature),
+        x25519IdentityKey: base64ToUint8Array(keyBundle.x25519IdentityKey),
+        ed25519IdentityKey: base64ToUint8Array(keyBundle.ed25519IdentityKey),
+        signedPreKeyId: keyBundle.signedPreKeyId,
+        signedPreKey: base64ToUint8Array(keyBundle.signedPreKey),
+        signedPreKeySignature: base64ToUint8Array(keyBundle.signedPreKeySignature),
         oneTimePreKeyId: keyBundle.oneTimePreKeyId,
         oneTimePreKey: keyBundle.oneTimePreKey ? base64ToUint8Array(keyBundle.oneTimePreKey) : null,
       }))
@@ -125,7 +127,7 @@ export const chatApi = {
         createdAt: msg.createdAt,
         senderId: msg.senderId,
         senderDeviceId: msg.senderDeviceId,
-        preKeyIdUsed: msg.preKeyIdUsed,
+        signedPreKeyIdUsed: msg.signedPreKeyIdUsed,
         oneTimePreKeyIdUsed: msg.oneTimePreKeyIdUsed,
         senderEphemeralKey: msg.senderEphemeralKey
           ? base64ToUint8Array(msg.senderEphemeralKey)

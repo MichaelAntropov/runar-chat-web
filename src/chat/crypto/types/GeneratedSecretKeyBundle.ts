@@ -1,6 +1,7 @@
 export interface GeneratedSecretKeyBundle {
   deviceId: string
   x25519publicIdentityKey: Uint8Array<ArrayBuffer>
+  signedPreKeyId: string
   oneTimePreKeyId: string | null
   secretKey: CryptoKey
   sharedHeaderKey: Uint8Array<ArrayBuffer>

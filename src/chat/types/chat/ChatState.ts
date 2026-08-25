@@ -27,6 +27,7 @@ export interface ChatState {
   headerKeyReceiving: Uint8Array<ArrayBuffer> | null
   headerKeyNextReceiving: Uint8Array<ArrayBuffer> | null
 
-  preKeyIdUsed: string | null
+  signedPreKeyIdUsed: string | null
+  oneTimePreKeyIdUsed: string | null
   ephemeralPublicBytes: Uint8Array<ArrayBuffer> | null
 }

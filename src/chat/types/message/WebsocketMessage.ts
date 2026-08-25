@@ -5,7 +5,7 @@ export interface WebsocketMessage {
   senderId: string
   senderDeviceId: string
 
-  preKeyIdUsed: string | null
+  signedPreKeyIdUsed: string | null
   oneTimePreKeyIdUsed: string | null
 
   senderEphemeralKey: string | null

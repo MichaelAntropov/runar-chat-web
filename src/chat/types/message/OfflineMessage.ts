@@ -5,7 +5,7 @@ export interface OfflineMessage {
   senderId: string
   senderDeviceId: string
 
-  preKeyIdUsed: string | null
+  signedPreKeyIdUsed: string | null
   oneTimePreKeyIdUsed: string | null
 
   senderEphemeralKey: Uint8Array<ArrayBuffer> | null

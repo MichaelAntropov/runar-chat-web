@@ -163,10 +163,12 @@ export async function generateSecretKeyForKeyBundle(
   )) as CryptoKeyPair
 
   const ikReceiverPublic: CryptoKey = await x25519PublicCryptoKeyForDHFromPublicBytes(
-    keyBundle.x25519identityKey,
+    keyBundle.x25519IdentityKey,
   )
 
-  const preKeyPublic: CryptoKey = await x25519PublicCryptoKeyForDHFromPublicBytes(keyBundle.preKey)
+  const preKeyPublic: CryptoKey = await x25519PublicCryptoKeyForDHFromPublicBytes(
+    keyBundle.signedPreKey,
+  )
 
   let oneTimePreKey: CryptoKey | null = null
   if (keyBundle.oneTimePreKey) {
@@ -206,12 +208,13 @@ export async function generateSecretKeyForKeyBundle(
   console.log(`SK for device=${keyBundle.deviceId} generated!`)
   return {
     deviceId: keyBundle.deviceId,
-    x25519publicIdentityKey: keyBundle.x25519identityKey,
+    x25519publicIdentityKey: keyBundle.x25519IdentityKey,
+    signedPreKeyId: keyBundle.signedPreKeyId,
     oneTimePreKeyId: keyBundle.oneTimePreKeyId ? keyBundle.oneTimePreKeyId : null,
     secretKey: ratchetKeys.rootKey,
     sharedHeaderKey: ratchetKeys.sharedHeaderKey,
     sharedNextHeaderKey: ratchetKeys.sharedNextHeaderKey,
-    preKeyPublic: keyBundle.preKey,
+    preKeyPublic: keyBundle.signedPreKey,
     ephemeralPublicBytes: new Uint8Array(senderEphemeralKeyPublic),
   }
 }
@@ -222,7 +225,7 @@ export async function generateSecretKeyForKeyBundle(
  * @param senderUserId The ID of the user who sent the message.
  * @param senderDeviceId The ID of the device that sent the message.
  * @param senderEphemeralKey The sender's public ephemeral key.
- * @param preKeyIdUsed The ID of the one-time pre-key used by the sender, if any.
+ * @param oneTimePreKeyIdUsed The ID of the one-time pre-key used by the sender, if any.
  */
 export async function establishSecretKeyWithSender(
   senderIdentityKey: IdentityKey,

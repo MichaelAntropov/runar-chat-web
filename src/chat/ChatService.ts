@@ -207,8 +207,8 @@ async function encryptForChatState(
   return {
     receiverUserId: chatState.userId,
     receiverDeviceId: chatState.deviceId,
-    receiverPreKeyId: chatState.deviceId,
-    receiverOneTimePreKeyId: chatState.preKeyIdUsed,
+    receiverSignedPreKeyId: chatState.signedPreKeyIdUsed,
+    receiverOneTimePreKeyId: chatState.oneTimePreKeyIdUsed,
     senderEphemeralKey: chatState.ephemeralPublicBytes
       ? uint8ArrayToBase64(chatState.ephemeralPublicBytes)
       : null,
@@ -758,7 +758,11 @@ async function establishChatStateForChat(chat: Chat) {
   const verifications: boolean[] = await Promise.all(
     keyBundles.keyBundles.map((bundle) => {
       console.log(`Verify signature for device=${bundle.deviceId}`)
-      return verifyPreKeySignature(bundle.ed25519identityKey, bundle.preKey, bundle.preKeySignature)
+      return verifyPreKeySignature(
+        bundle.ed25519IdentityKey,
+        bundle.signedPreKey,
+        bundle.signedPreKeySignature,
+      )
     }),
   )
   if (verifications.some((v: boolean) => !v)) {
@@ -779,7 +783,8 @@ async function establishChatStateForChat(chat: Chat) {
 
   for (const skBundle of generatedSkBundles) {
     const newChatState = createNewChatState(chat.contact.userId, skBundle.deviceId, null)
-    newChatState.preKeyIdUsed = skBundle.oneTimePreKeyId
+    newChatState.signedPreKeyIdUsed = skBundle.signedPreKeyId
+    newChatState.oneTimePreKeyIdUsed = skBundle.oneTimePreKeyId
     newChatState.ephemeralPublicBytes = skBundle.ephemeralPublicBytes
 
     const secretKeyRaw = new Uint8Array(await crypto.subtle.exportKey('raw', skBundle.secretKey))
@@ -799,9 +804,9 @@ async function establishChatStateForKeyBundle(userId: string, bundle: InitDevice
 
   console.log(`Verify signature for device=${bundle.deviceId}`)
   const verification: boolean = await verifyPreKeySignature(
-    bundle.ed25519identityKey,
-    bundle.preKey,
-    bundle.preKeySignature,
+    bundle.ed25519IdentityKey,
+    bundle.signedPreKey,
+    bundle.signedPreKeySignature,
   )
 
   if (!verification) {
@@ -820,7 +825,8 @@ async function establishChatStateForKeyBundle(userId: string, bundle: InitDevice
   )
 
   const newChatState = createNewChatState(userId, skBundle.deviceId, null)
-  newChatState.preKeyIdUsed = skBundle.oneTimePreKeyId
+  newChatState.signedPreKeyIdUsed = skBundle.signedPreKeyId
+  newChatState.oneTimePreKeyIdUsed = skBundle.oneTimePreKeyId
   newChatState.ephemeralPublicBytes = skBundle.ephemeralPublicBytes
 
   const secretKeyRaw = new Uint8Array(await crypto.subtle.exportKey('raw', skBundle.secretKey))
@@ -852,7 +858,8 @@ function createNewChatState(
     sendingMessageNumber: 0,
     receivingMessageNumber: 0,
     previousChainLength: 0,
-    preKeyIdUsed: null,
+    signedPreKeyIdUsed: null,
+    oneTimePreKeyIdUsed: null,
     ephemeralPublicBytes: null,
     headerKeySending: null,
     headerKeyNextSending: null,

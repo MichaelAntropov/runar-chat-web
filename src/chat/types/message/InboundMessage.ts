@@ -8,7 +8,7 @@ export interface InboundMessage {
   senderId: string
   senderDeviceId: string
 
-  preKeyIdUsed: string | null
+  signedPreKeyIdUsed: string | null
   oneTimePreKeyIdUsed: string | null
 
   senderEphemeralKey: Uint8Array<ArrayBuffer> | null
@@ -27,7 +27,7 @@ export function inboundMessageFromWebsocketMessage(
     senderId: websocketMessage.senderId,
     senderDeviceId: websocketMessage.senderDeviceId,
 
-    preKeyIdUsed: websocketMessage.preKeyIdUsed,
+    signedPreKeyIdUsed: websocketMessage.signedPreKeyIdUsed,
     oneTimePreKeyIdUsed: websocketMessage.oneTimePreKeyIdUsed,
 
     senderEphemeralKey: websocketMessage.senderEphemeralKey
