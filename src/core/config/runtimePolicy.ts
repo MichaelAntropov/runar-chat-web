@@ -1,5 +1,5 @@
 export const runtimePolicy = {
+  directMessageReadReceiptsEnabled: true,
   directMessageReceivingEnabled: true,
   directMessageSendingEnabled: true,
-  legacyDirectMessagingEnabled: false,
 } as const

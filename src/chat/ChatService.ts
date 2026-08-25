@@ -1,13 +1,10 @@
-import { sessionsApi } from '@/auth/api/sessionsApi'
 import type { Chat } from '@/chat/types/chat/Chat'
 import type { StoredMessage } from '@/chat/types/chat/StoredMessage'
-import type { SendMessageResponse } from '@/chat/types/message/SendMessageResponse'
 import { contactApi } from '@/contacts/contactApi'
 import { useContactsStore } from '@/contacts/contactStore'
 import type { FoundUser } from '@/contacts/types/FindUserResponse'
 import { runtimePolicy } from '@/core/config/runtimePolicy'
-import { parseUtcTimestamp, uint8ArrayToBase64 } from '@/core/utils'
-import { chatStateRepository } from '@/db/repositories/ChatStateRepository'
+import { parseUtcTimestamp } from '@/core/utils'
 import { pendingReadReceiptRepository } from '@/db/repositories/PendingReadReceiptRepository'
 import { useSettingsStore } from '@/settings/settingsStore'
 import { useUserStore } from '@/user/userStore'
@@ -20,40 +17,24 @@ import {
   getDirectMessageReceivingService,
   getDirectMessageSendingService,
 } from './directMessageCoordinator'
-import {
-  generateSecretKeyForKeyBundle,
-  verifyPreKeySignature,
-} from './crypto/dhke'
-import {
-  initRatchetAsSender,
-  ratchetEncrypt,
-} from './crypto/ratchet'
-import type { GeneratedSecretKeyBundle } from './crypto/types/GeneratedSecretKeyBundle'
-import type { RatchetEncryptResult } from './crypto/types/RatchetEncryptResult'
-import type { SkippedMessageKey } from './crypto/types/SkippedMessage'
-import type { ChatState } from './types/chat/ChatState'
-import type { EncodedMessage } from './types/chat/Message'
 import type { NoOpMessage } from './types/chat/NoOpMessage'
 import type { ReadReceiptMessage } from './types/chat/ReadReceiptMessage'
 import type { TextMessage } from './types/chat/TextMessage'
-import type { InitDeviceKeyBundle, InitKeyBundle } from './types/key-bundle/InitKeyBundleResponse'
-import { DeviceSetMismatchError } from './types/message/DeviceSetMismatchError'
 import type { InboundMessage } from './types/message/InboundMessage'
 import { MessageReceiverBlockedError } from './types/message/MessageReceiverBlockedError'
-import type { DeviceMessagePayload, MessagePayload } from './types/message/MessagePayload'
 import type { ReadReceipt } from './types/receipt/ReadReceipt'
 
 const MAX_READ_RECEIPTS_PER_MESSAGE = 100
 const READ_RECEIPT_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-let ratchetQueue: Promise<void> = Promise.resolve()
+let directMessageQueue: Promise<void> = Promise.resolve()
 let receiptFlushPromise: Promise<void> | null = null
 let receiptFlushRequested = false
 
-function enqueueRatchetOperation<T>(operation: () => Promise<T>): Promise<T> {
-  const result = ratchetQueue.then(operation, operation)
-  ratchetQueue = result.then(
+function enqueueDirectMessageOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = directMessageQueue.then(operation, operation)
+  directMessageQueue = result.then(
     () => undefined,
     () => undefined,
   )
@@ -95,7 +76,7 @@ export function openSavedMessagesChat(): Chat | null {
  * @param content The string content to send.
  */
 export async function sendMessageInCurrentChat(content: string): Promise<void> {
-  return enqueueRatchetOperation(() => sendMessageInCurrentChatInternal(content))
+  return enqueueDirectMessageOperation(() => sendMessageInCurrentChatInternal(content))
 }
 
 async function sendMessageInCurrentChatInternal(content: string): Promise<void> {
@@ -161,114 +142,8 @@ async function sendMessageInCurrentChatInternal(content: string): Promise<void> 
   await chatStore.addMessageToChat(chat, newStoredMessage)
 }
 
-async function ensureChatStatesForChat(chat: Chat): Promise<ChatState[]> {
-  const userStore = useUserStore()
-  let chatStates = await getEstablishedChatStatesForChat(chat)
-  const hasTargetState = chatStates.some((chatState) => chatState.userId === chat.contact.userId)
-
-  if (!hasTargetState) {
-    console.log('ensureChatStatesForChat() - Establishing missing target sessions...')
-    await establishChatStateForChat(chat)
-    chatStates = await getEstablishedChatStatesForChat(chat)
-  }
-
-  if (chat.contact.userId !== userStore.principal?.id) {
-    if (!chatStates.some((chatState) => chatState.userId === chat.contact.userId)) {
-      throw new Error(`No target device sessions available for chat=${chat.id}`)
-    }
-    return chatStates
-  }
-  return chatStates.filter((chatState) => chatState.userId === chat.contact.userId)
-}
-
-async function encryptForChatState(
-  chatState: ChatState,
-  encodedMessage: EncodedMessage,
-  senderId: string,
-): Promise<DeviceMessagePayload> {
-  const senderIdEncoded = new TextEncoder().encode(senderId)
-  const receiverIdEncoded = new TextEncoder().encode(chatState.userId)
-  const associatedData: Uint8Array<ArrayBuffer> = new Uint8Array(
-    senderIdEncoded.length + receiverIdEncoded.length,
-  )
-  associatedData.set(senderIdEncoded)
-  associatedData.set(receiverIdEncoded, senderIdEncoded.length)
-  const plaintext: Uint8Array<ArrayBuffer> = new Uint8Array(
-    new TextEncoder().encode(JSON.stringify(encodedMessage)),
-  )
-
-  const encryptResult: RatchetEncryptResult = await ratchetEncrypt(
-    chatState,
-    plaintext,
-    associatedData,
-  )
-
-  await chatStateRepository.updateChatState(chatState)
-
-  return {
-    receiverUserId: chatState.userId,
-    receiverDeviceId: chatState.deviceId,
-    receiverSignedPreKeyId: chatState.signedPreKeyIdUsed,
-    receiverOneTimePreKeyId: chatState.oneTimePreKeyIdUsed,
-    senderEphemeralKey: chatState.ephemeralPublicBytes
-      ? uint8ArrayToBase64(chatState.ephemeralPublicBytes)
-      : null,
-    cipherPayload: uint8ArrayToBase64(encryptResult.encryptedPayload),
-    encryptedHeader: uint8ArrayToBase64(encryptResult.encryptedHeader),
-  }
-}
-
-async function sendEncryptedMessage(
-  chat: Chat,
-  messageForState: (chatState: ChatState) => EncodedMessage,
-  retryCount = 0,
-): Promise<SendMessageResponse> {
-  const principalId = useUserStore().principal?.id
-  if (!principalId) throw new Error('No authenticated principal')
-
-  const chatStates = await ensureChatStatesForChat(chat)
-  if (chatStates.length === 0) throw new Error('No target device sessions available')
-
-  const deviceMessages = await Promise.all(
-    chatStates.map((chatState) =>
-      encryptForChatState(chatState, messageForState(chatState), principalId),
-    ),
-  )
-  const messagePayload: MessagePayload = { deviceMessages }
-
-  try {
-    return await chatApi.postSendMessagePayload(messagePayload)
-  } catch (error) {
-    if (!(error instanceof DeviceSetMismatchError) || retryCount >= 2) throw error
-
-    console.warn('sendEncryptedMessage() - Device set mismatch:', {
-      missingDeviceIds: error.missingDeviceIds,
-      invalidDeviceIds: error.invalidDeviceIds,
-    })
-
-    const deletedCount = await chatStateRepository.deleteByUserAndDeviceIds(error.invalidDeviceIds)
-    let establishedCount = 0
-
-    if (Object.keys(error.missingDeviceIds).length > 0) {
-      const keyBundles: Map<string, InitDeviceKeyBundle[]> = await chatApi.getKeyBundles(
-        error.missingDeviceIds,
-      )
-      for (const [userId, bundles] of keyBundles.entries()) {
-        for (const bundle of bundles) {
-          await establishChatStateForKeyBundle(userId, bundle)
-          establishedCount++
-        }
-      }
-    }
-
-    if (deletedCount === 0 && establishedCount === 0) throw error
-
-    return sendEncryptedMessage(chat, messageForState, retryCount + 1)
-  }
-}
-
 export async function queueReadReceipts(chat: Chat, receipts: ReadReceipt[]): Promise<void> {
-  if (!runtimePolicy.legacyDirectMessagingEnabled) return
+  if (!runtimePolicy.directMessageReadReceiptsEnabled) return
   const principalId = useUserStore().principal?.id
   if (
     !principalId ||
@@ -292,7 +167,7 @@ export async function queueReadReceipts(chat: Chat, receipts: ReadReceipt[]): Pr
 }
 
 export async function flushPendingReadReceipts(): Promise<void> {
-  if (!runtimePolicy.legacyDirectMessagingEnabled) return
+  if (!runtimePolicy.directMessageReadReceiptsEnabled) return
   if (receiptFlushPromise) {
     receiptFlushRequested = true
     return receiptFlushPromise
@@ -353,7 +228,7 @@ async function flushPendingReadReceiptsInternal(): Promise<void> {
     for (let index = 0; index < chatReceipts.length; index += MAX_READ_RECEIPTS_PER_MESSAGE) {
       const batch = chatReceipts.slice(index, index + MAX_READ_RECEIPTS_PER_MESSAGE)
       try {
-        const sent = await enqueueRatchetOperation(async () => {
+        const sent = await enqueueDirectMessageOperation(async () => {
           if (!(await areReadReceiptsEnabled(chat))) return false
 
           const receiptMessage: ReadReceiptMessage = {
@@ -366,8 +241,12 @@ async function flushPendingReadReceiptsInternal(): Promise<void> {
             ultimateReceiverId: principalId,
           }
 
-          await sendEncryptedMessage(chat, (chatState) =>
-            chatState.userId === principalId ? noOpMessage : receiptMessage,
+          const encoder = new TextEncoder()
+          await getDirectMessageSendingService().sendWithLocalDeviceCopy(
+            chat.contact.userId,
+            principalId,
+            Uint8Array.from(encoder.encode(JSON.stringify(receiptMessage))),
+            Uint8Array.from(encoder.encode(JSON.stringify(noOpMessage))),
           )
           return true
         })
@@ -425,7 +304,7 @@ export async function fetchAndProcessOfflineEvents() {
  * @param msg The inbound message data.
  */
 export function decryptInboundMessageAndPushToChat(msg: InboundMessage): Promise<void> {
-  return enqueueRatchetOperation(() => decryptInboundMessageAndPushToChatInternal(msg))
+  return enqueueDirectMessageOperation(() => decryptInboundMessageAndPushToChatInternal(msg))
 }
 
 async function decryptInboundMessageAndPushToChatInternal(msg: InboundMessage): Promise<void> {
@@ -609,159 +488,4 @@ async function createContactAndChatForUserId(userId: string) {
 
   const chatStore = useChatsStore()
   chatStore.createNewChatFromContact(newContact)
-}
-
-async function getEstablishedChatStatesForChat(chat: Chat): Promise<ChatState[]> {
-  console.log('Get existing chat states...')
-  const deviceStore = useDeviceStore()
-  const userStore = useUserStore()
-  const chatStatesWithContact: ChatState[] = await chatStateRepository.getAllChatStatesByUserId(
-    chat.contact.userId,
-  )
-  const chatStatesWithOtherPrincipleDevices: ChatState[] =
-    await chatStateRepository.getAllChatStatesByUserId(userStore.principal!.id)
-
-  const statesByDeviceId = new Map<string, ChatState>()
-  for (const chatState of chatStatesWithContact.concat(chatStatesWithOtherPrincipleDevices)) {
-    if (chatState.deviceId !== deviceStore.deviceId) {
-      statesByDeviceId.set(chatState.deviceId, chatState)
-    }
-  }
-
-  return [...statesByDeviceId.values()]
-}
-
-async function establishChatStateForChat(chat: Chat) {
-  const deviceStore = useDeviceStore()
-  const userStore = useUserStore()
-  console.log(`Fetching key bundles for ${chat.contact.username}...`)
-  let keyBundles: InitKeyBundle
-
-  if (chat.contact.userId === userStore.principal?.id) {
-    const sessions = await sessionsApi.getDeviceSessions()
-    const otherDeviceIds = sessions.deviceSessions
-      .map((session) => session.deviceId)
-      .filter((deviceId) => deviceId !== deviceStore.deviceId)
-
-    if (otherDeviceIds.length === 0) return
-
-    const bundlesByUser = await chatApi.getKeyBundles({
-      [chat.contact.userId]: otherDeviceIds,
-    })
-    keyBundles = { keyBundles: bundlesByUser.get(chat.contact.userId) ?? [] }
-  } else {
-    keyBundles = await chatApi.getKeyBundle(chat.contact.userId)
-  }
-
-  const verifications: boolean[] = await Promise.all(
-    keyBundles.keyBundles.map((bundle) => {
-      console.log(`Verify signature for device=${bundle.deviceId}`)
-      return verifyPreKeySignature(
-        bundle.ed25519IdentityKey,
-        bundle.signedPreKey,
-        bundle.signedPreKeySignature,
-      )
-    }),
-  )
-  if (verifications.some((v: boolean) => !v)) {
-    throw new Error('Failed to verify one or more device pre-key signatures.')
-  }
-
-  if (!deviceStore.identityX25519.keyPair) {
-    throw new Error('Local identity key missing.')
-  }
-
-  const identityX25519PrivateKey: CryptoKey = deviceStore.identityX25519.keyPair.privateKey
-
-  const generatedSkBundles = await Promise.all(
-    keyBundles.keyBundles.map((bundle) =>
-      generateSecretKeyForKeyBundle(bundle, identityX25519PrivateKey),
-    ),
-  )
-
-  for (const skBundle of generatedSkBundles) {
-    const newChatState = createNewChatState(chat.contact.userId, skBundle.deviceId, null)
-    newChatState.signedPreKeyIdUsed = skBundle.signedPreKeyId
-    newChatState.oneTimePreKeyIdUsed = skBundle.oneTimePreKeyId
-    newChatState.ephemeralPublicBytes = skBundle.ephemeralPublicBytes
-
-    const secretKeyRaw = new Uint8Array(await crypto.subtle.exportKey('raw', skBundle.secretKey))
-    await initRatchetAsSender(
-      newChatState,
-      secretKeyRaw,
-      skBundle.preKeyPublic,
-      skBundle.sharedHeaderKey,
-      skBundle.sharedNextHeaderKey,
-    )
-    await chatStateRepository.saveChatState(newChatState)
-  }
-}
-
-async function establishChatStateForKeyBundle(userId: string, bundle: InitDeviceKeyBundle) {
-  const deviceStore = useDeviceStore()
-
-  console.log(`Verify signature for device=${bundle.deviceId}`)
-  const verification: boolean = await verifyPreKeySignature(
-    bundle.ed25519IdentityKey,
-    bundle.signedPreKey,
-    bundle.signedPreKeySignature,
-  )
-
-  if (!verification) {
-    throw new Error('Failed to verify device pre-key signatures.')
-  }
-
-  if (!deviceStore.identityX25519.keyPair) {
-    throw new Error('Local identity key missing.')
-  }
-
-  const identityX25519PrivateKey: CryptoKey = deviceStore.identityX25519.keyPair.privateKey
-
-  const skBundle: GeneratedSecretKeyBundle = await generateSecretKeyForKeyBundle(
-    bundle,
-    identityX25519PrivateKey,
-  )
-
-  const newChatState = createNewChatState(userId, skBundle.deviceId, null)
-  newChatState.signedPreKeyIdUsed = skBundle.signedPreKeyId
-  newChatState.oneTimePreKeyIdUsed = skBundle.oneTimePreKeyId
-  newChatState.ephemeralPublicBytes = skBundle.ephemeralPublicBytes
-
-  const secretKeyRaw = new Uint8Array(await crypto.subtle.exportKey('raw', skBundle.secretKey))
-  await initRatchetAsSender(
-    newChatState,
-    secretKeyRaw,
-    skBundle.preKeyPublic,
-    skBundle.sharedHeaderKey,
-    skBundle.sharedNextHeaderKey,
-  )
-  await chatStateRepository.saveChatState(newChatState)
-}
-
-function createNewChatState(
-  userId: string,
-  deviceId: string,
-  x25519publicIdentityKey: Uint8Array<ArrayBuffer> | null,
-): ChatState {
-  return {
-    deviceId: deviceId,
-    userId: userId,
-    x25519publicIdentityKey: x25519publicIdentityKey,
-    dhSendingKeyPair: null,
-    dhReceivingPublicKey: null,
-    rootKey: null,
-    chainKeySending: null,
-    chainKeyReceiving: null,
-    skippedMessageKeys: new Array<SkippedMessageKey>(),
-    sendingMessageNumber: 0,
-    receivingMessageNumber: 0,
-    previousChainLength: 0,
-    signedPreKeyIdUsed: null,
-    oneTimePreKeyIdUsed: null,
-    ephemeralPublicBytes: null,
-    headerKeySending: null,
-    headerKeyNextSending: null,
-    headerKeyReceiving: null,
-    headerKeyNextReceiving: null,
-  }
 }

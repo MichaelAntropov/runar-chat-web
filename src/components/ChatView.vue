@@ -71,7 +71,7 @@ const messageDateGroups = computed<MessageDateGroup[]>(() => {
 
 function canMarkMessagesAsRead(): boolean {
   return (
-    runtimePolicy.legacyDirectMessagingEnabled &&
+    runtimePolicy.directMessageReadReceiptsEnabled &&
     document.visibilityState === 'visible' &&
     document.hasFocus()
   )

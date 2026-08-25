@@ -9,12 +9,9 @@ import { SesameInvalidStateError } from './types/sesameErrors'
 import type {
   SesameDecryptionInput,
   SesameDecryptionResult,
-  SesameDeviceIdentity,
   SesameDeviceIdentityTuple,
   SesameDeviceRecord,
-  SesameDeviceSetChange,
   SesameDeviceSetReconciliationOptions,
-  SesameEncryptedDeviceMessage,
   SesameEncryptionResult,
   SesameRemoteDevice,
   SesameSessionAdapter,

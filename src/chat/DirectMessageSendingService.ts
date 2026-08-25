@@ -15,15 +15,34 @@ export class DirectMessageSendingService {
     private readonly sendPayload: (payload: MessagePayload) => Promise<SendMessageResponse>
   ) {}
 
-  async send(recipientUserId: string, localUserId: string, plaintext: Uint8Array<ArrayBuffer>, retryCount = 0): Promise<SendMessageResponse | null> {
-    const recipient = await this.coordinator.encryptForUser(recipientUserId, plaintext, {
+  send(recipientUserId: string, localUserId: string, plaintext: Uint8Array<ArrayBuffer>): Promise<SendMessageResponse | null> {
+    return this.sendWithLocalDeviceCopy(recipientUserId, localUserId, plaintext, plaintext)
+  }
+
+  sendWithLocalDeviceCopy(
+    recipientUserId: string,
+    localUserId: string,
+    recipientPlaintext: Uint8Array<ArrayBuffer>,
+    localDevicePlaintext: Uint8Array<ArrayBuffer>
+  ): Promise<SendMessageResponse | null> {
+    return this.sendAttempt(recipientUserId, localUserId, recipientPlaintext, localDevicePlaintext, 0)
+  }
+
+  private async sendAttempt(
+    recipientUserId: string,
+    localUserId: string,
+    recipientPlaintext: Uint8Array<ArrayBuffer>,
+    localDevicePlaintext: Uint8Array<ArrayBuffer>,
+    retryCount: number
+  ): Promise<SendMessageResponse | null> {
+    const recipient = await this.coordinator.encryptForUser(recipientUserId, recipientPlaintext, {
       allowEmptyDeviceSet: recipientUserId === localUserId,
     })
     const localDeviceMessages =
       recipientUserId === localUserId
         ? []
         : (
-            await this.coordinator.encryptForUser(localUserId, plaintext, {
+            await this.coordinator.encryptForUser(localUserId, localDevicePlaintext, {
               allowEmptyDeviceSet: true,
             })
           ).deviceMessages
@@ -44,7 +63,7 @@ export class DirectMessageSendingService {
       const affectedUserIds = new Set([recipientUserId, localUserId, ...Object.keys(error.missingDeviceIds), ...Object.keys(error.invalidDeviceIds)])
       for (const userId of affectedUserIds) this.coordinator.clearCachedUser(userId)
 
-      return this.send(recipientUserId, localUserId, plaintext, retryCount + 1)
+      return this.sendAttempt(recipientUserId, localUserId, recipientPlaintext, localDevicePlaintext, retryCount + 1)
     }
   }
 }

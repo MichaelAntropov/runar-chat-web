@@ -5,7 +5,7 @@ import { DeviceSetMismatchError } from '@/chat/types/message/DeviceSetMismatchEr
 import type { MessagePayload } from '@/chat/types/message/MessagePayload'
 import type { SendMessageResponse } from '@/chat/types/message/SendMessageResponse'
 import type { DoubleRatchetCipherText, EncodedDoubleRatchetHeader } from '@/crypto/double-ratchet/doubleRatchetTypes'
-import type { DirectMessageEncryptedMessage } from '@/sesame/direct-message/directMessageTypes'
+import type { DirectMessageEncryptedMessage, DirectMessageEncryptionOptions } from '@/sesame/direct-message/directMessageTypes'
 import type { SesameEncryptedDeviceMessage } from '@/sesame/types/sesameTypes'
 
 const RECIPIENT_USER_ID = 'recipient-user'
@@ -61,6 +61,24 @@ describe('DirectMessageSendingService', () => {
     expect(coordinator.encryptForUser).toHaveBeenCalledWith(LOCAL_USER_ID, Uint8Array.from([1]), { allowEmptyDeviceSet: true })
   })
 
+  it('can send a no-op plaintext to linked local devices', async () => {
+    const coordinator = createCoordinator({
+      [RECIPIENT_USER_ID]: [encryptedDeviceMessage('recipient-device', 1)],
+      [LOCAL_USER_ID]: [encryptedDeviceMessage('linked-local-device', 2)],
+    })
+    const service = new DirectMessageSendingService(
+      coordinator,
+      vi.fn(async () => sendResponse())
+    )
+    const receiptPlaintext = Uint8Array.from([1])
+    const localNoOpPlaintext = Uint8Array.from([2])
+
+    await service.sendWithLocalDeviceCopy(RECIPIENT_USER_ID, LOCAL_USER_ID, receiptPlaintext, localNoOpPlaintext)
+
+    expect(coordinator.encryptForUser).toHaveBeenNthCalledWith(1, RECIPIENT_USER_ID, receiptPlaintext, { allowEmptyDeviceSet: false })
+    expect(coordinator.encryptForUser).toHaveBeenNthCalledWith(2, LOCAL_USER_ID, localNoOpPlaintext, { allowEmptyDeviceSet: true })
+  })
+
   it('invalidates affected projections and re-encrypts after a device-set mismatch', async () => {
     const coordinator = createCoordinator({
       [RECIPIENT_USER_ID]: [encryptedDeviceMessage('recipient-device', 1)],
@@ -84,9 +102,11 @@ describe('DirectMessageSendingService', () => {
 function createCoordinator(messagesByUser: Record<string, EncryptedDeviceMessage[]>) {
   return {
     clearCachedUser: vi.fn(),
-    encryptForUser: vi.fn(async (userId: string) => ({
-      deviceMessages: messagesByUser[userId] ?? [],
-    })),
+    encryptForUser: vi.fn(async (userId: string, plaintext: Uint8Array<ArrayBuffer>, options?: DirectMessageEncryptionOptions) => {
+      void plaintext
+      void options
+      return { deviceMessages: messagesByUser[userId] ?? [] }
+    }),
   }
 }
 
