@@ -2,16 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { RunarDb } from '@/db/RunarDB'
 import { LOCAL_ONE_TIME_PRE_KEYS_STORE, SESAME_DEVICES_STORE, SESAME_SESSIONS_STORE, SESAME_USERS_STORE } from '@/db/RunarDB'
-import type { LocalOneTimePreKey } from '@/device/types/LocalOneTimePreKey'
-import type { SesameDevice } from '@/sesame/entities/SesameDeviceEntity'
-import type { SesameSession } from '@/sesame/entities/SesameSessionEntity'
-import type { SesameUser } from '@/sesame/entities/SesameUserEntity'
+import type { LocalOneTimePreKey } from '@/device/entities/localDeviceEntities'
+import type { SesameDevice, SesameSession, SesameUser } from '@/sesame/entities/sesameEntities'
 import type { SesameUserRecord } from '@/sesame/types/sesameTypes'
 
 import { DirectMessageSessionPersistence } from '../DirectMessageSessionPersistence'
-import type { DirectMessageInitiationData } from '../types/DirectMessageInitiationData'
-import { DirectMessageSessionError } from '../types/DirectMessageSessionError'
-import type { DirectMessageSessionState } from '../types/DirectMessageSessionState'
+import { DirectMessageSessionError } from '../directMessageErrors'
+import type { DirectMessageInitiationData, DirectMessageSessionState } from '../directMessageTypes'
 
 const ONE_TIME_PRE_KEY_ID = 'one-time-pre-key'
 

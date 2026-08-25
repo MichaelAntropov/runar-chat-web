@@ -8,16 +8,19 @@ import type {
   SesameSessionAdapter,
   SesameSessionDecryptionResult,
   SesameSessionEncryptionResult,
-} from '@/sesame/types/sesameSessionAdapter'
-import type { SesameSessionRecord, SesameUserRecord } from '@/sesame/types/sesameTypes'
-import type { SesameUserProjection } from '@/sesame/types/sesameUserProjection'
+  SesameSessionRecord,
+  SesameUserProjection,
+  SesameUserRecord,
+} from '@/sesame/types/sesameTypes'
 
 import { DirectMessageCoordinator } from '../DirectMessageCoordinator'
-import type { DirectMessageEncryptedMessage } from '../types/DirectMessageEncryptedMessage'
-import type { DirectMessageInitiationData } from '../types/DirectMessageInitiationData'
-import type { DirectMessagePersistence } from '../types/DirectMessagePersistence'
-import { DirectMessageSessionError } from '../types/DirectMessageSessionError'
-import type { DirectMessageSessionState } from '../types/DirectMessageSessionState'
+import { DirectMessageSessionError } from '../directMessageErrors'
+import type {
+  DirectMessageEncryptedMessage,
+  DirectMessageInitiationData,
+  DirectMessagePersistence,
+  DirectMessageSessionState,
+} from '../directMessageTypes'
 
 const LOCAL_USER_ID = 'local-user'
 const LOCAL_DEVICE_ID = 'local-device'

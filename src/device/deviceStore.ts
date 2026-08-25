@@ -9,20 +9,9 @@ import { deviceApi } from './deviceApi'
 import { getDeviceLabel } from './deviceLabel'
 import { DeviceRegistrationService } from './deviceRegistrationService'
 import { LocalDeviceRepository } from './LocalDeviceRepository'
-import type { DeviceBootstrapStatus } from './types/DeviceBootstrapStatus'
 import type { KeyPairState } from './types/KeyPairState'
-import type { LocalDeviceKeyMaterial } from './types/LocalDeviceKeyMaterial'
+import type { DeviceBootstrapStatus, DeviceRecoveryStatus, DeviceRegistrationStatus, LocalDeviceKeyMaterial } from './types/localDeviceTypes'
 import type { SignedPreKeyState } from './types/SignedPreKeyState'
-
-export type DeviceRegistrationStatus =
-  | 'loading'
-  | 'incomplete'
-  | 'generating'
-  | 'registering'
-  | 'registered'
-  | 'error'
-
-export type DeviceRecoveryStatus = 'none' | 'required' | 'processing' | 'error'
 
 export const useDeviceStore = defineStore('device', () => {
   const userStore = useUserStore()
@@ -37,25 +26,12 @@ export const useDeviceStore = defineStore('device', () => {
   let bootstrapGeneration = 0
 
   const deviceId = computed<string | null>(() => localDevice.value?.device.deviceId ?? null)
-  const isRegistered = computed<boolean>(
-    () => bootstrapStatus.value === 'ready' && !!deviceId.value
-  )
+  const isRegistered = computed<boolean>(() => bootstrapStatus.value === 'ready' && !!deviceId.value)
   const isLoading = computed<boolean>(() =>
-    [
-      'waiting-for-database',
-      'loading-local-device',
-      'generating-keys',
-      'registering',
-      'persisting',
-      'upgrading-auth',
-    ].includes(bootstrapStatus.value)
+    ['waiting-for-database', 'loading-local-device', 'generating-keys', 'registering', 'persisting', 'upgrading-auth'].includes(bootstrapStatus.value)
   )
   const applicationReady = computed<boolean>(
-    () =>
-      bootstrapStatus.value === 'ready' &&
-      dbStore.dbStatus === 'ready' &&
-      userStore.authStatus === 'upgraded' &&
-      !!localDevice.value
+    () => bootstrapStatus.value === 'ready' && dbStore.dbStatus === 'ready' && userStore.authStatus === 'upgraded' && !!localDevice.value
   )
   const registrationStatus = computed<DeviceRegistrationStatus>(() => {
     switch (bootstrapStatus.value) {

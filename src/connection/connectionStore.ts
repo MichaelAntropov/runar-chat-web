@@ -1,30 +1,19 @@
 import { defineStore } from 'pinia'
 import { ref, watch, type Ref } from 'vue'
 
-import {
-  decryptInboundMessageAndPushToChat,
-  fetchAndProcessOfflineEvents,
-  flushPendingReadReceipts,
-} from '@/chat/ChatService'
+import { decryptInboundMessageAndPushToChat, fetchAndProcessOfflineEvents, flushPendingReadReceipts } from '@/chat/ChatService'
 import { useChatsStore } from '@/chat/chatStore'
-import {
-  inboundMessageFromWebsocketMessage,
-  type InboundMessage,
-} from '@/chat/types/message/InboundMessage'
+import { inboundMessageFromWebsocketMessage, type InboundMessage } from '@/chat/types/message/InboundMessage'
 import { deliveryReceiptFromResponse } from '@/chat/types/receipt/DeliveryReceipt'
 import { runtimePolicy } from '@/core/config/runtimePolicy'
 import { useDbStore, type DbStatus } from '@/db/dbStore'
-import { useDeviceStore, type DeviceRegistrationStatus } from '@/device/deviceStore'
+import { useDeviceStore } from '@/device/deviceStore'
+import type { DeviceRegistrationStatus } from '@/device/types/localDeviceTypes'
 import { usePresenceStore } from '@/presence/presenceStore'
 import { useUserStore } from '@/user/userStore'
 
 import { WebsocketConnection, type WebSocketConnectionStatus } from './WebsocketConnection'
-import type {
-  DeviceRemovedWsMessage,
-  DeliveryReceiptWsMessage,
-  MessageWsMessage,
-  PresenceWsMessage,
-} from './wsEventTypes'
+import type { DeviceRemovedWsMessage, DeliveryReceiptWsMessage, MessageWsMessage, PresenceWsMessage } from './wsEventTypes'
 
 export const useConnectionStore = defineStore('connection-store', () => {
   const userStore = useUserStore()
@@ -52,12 +41,7 @@ export const useConnectionStore = defineStore('connection-store', () => {
         const currentUserId = userStore.principal?.id
         const currentDeviceId = deviceStore.deviceId
 
-        if (
-          typeof msg.userId === 'string' &&
-          typeof msg.deviceId === 'string' &&
-          msg.userId === currentUserId &&
-          msg.deviceId === currentDeviceId
-        ) {
+        if (typeof msg.userId === 'string' && typeof msg.deviceId === 'string' && msg.userId === currentUserId && msg.deviceId === currentDeviceId) {
           websocketConnection.disconnect()
           userStore.handleDeviceRemoved()
         }
@@ -86,8 +70,7 @@ export const useConnectionStore = defineStore('connection-store', () => {
           const receipt = deliveryReceiptFromResponse(msg.payload)
           const chatsStore = useChatsStore()
           void chatsStore.applyDeliveryReceipts([receipt]).catch((error) => {
-            const details =
-              error instanceof Error ? (error.stack ?? `${error.name}: ${error.message}`) : error
+            const details = error instanceof Error ? (error.stack ?? `${error.name}: ${error.message}`) : error
             console.error('[connection-store] - Failed to process delivery receipt:', details)
           })
         } catch (error) {
@@ -109,31 +92,23 @@ export const useConnectionStore = defineStore('connection-store', () => {
     const { registrationStatus, deviceId } = deviceStore
     const { isAuthenticated, authStatus } = userStore
 
-    if (
-      isAuthenticated &&
-      authStatus == 'upgraded' &&
-      registrationStatus === 'registered' &&
-      deviceId
-    ) {
+    if (isAuthenticated && authStatus == 'upgraded' && registrationStatus === 'registered' && deviceId) {
       await fetchAndProcessOfflineEvents()
     }
   }
 
   watch(
-    () => [
-      userStore.isAuthenticated,
-      userStore.authStatus,
-      deviceStore.registrationStatus,
-      deviceStore.deviceId,
-      dbStore.dbStatus,
-    ],
-    (
-      [isAuthenticated, authStatus, registrationStatus, deviceId, dbEncryptionStatus],
-      oldValues = [],
-    ) => {
+    () => [userStore.isAuthenticated, userStore.authStatus, deviceStore.registrationStatus, deviceStore.deviceId, dbStore.dbStatus],
+    ([isAuthenticated, authStatus, registrationStatus, deviceId, dbEncryptionStatus], oldValues = []) => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const [wasAuthenticated, prevAuthStatus, prevRegStatus, prevDeviceId, prevDbEncryptStatus] =
-        oldValues as (boolean | DeviceRegistrationStatus | DbStatus | string | null | undefined)[]
+      const [wasAuthenticated, prevAuthStatus, prevRegStatus, prevDeviceId, prevDbEncryptStatus] = oldValues as (
+        | boolean
+        | DeviceRegistrationStatus
+        | DbStatus
+        | string
+        | null
+        | undefined
+      )[]
 
       const canConnect =
         runtimePolicy.legacyDirectMessagingEnabled &&
@@ -153,7 +128,7 @@ export const useConnectionStore = defineStore('connection-store', () => {
         }
       }
     },
-    { immediate: true },
+    { immediate: true }
   )
 
   return {

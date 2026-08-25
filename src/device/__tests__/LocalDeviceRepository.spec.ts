@@ -1,14 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { RunarDb } from '@/db/RunarDB'
-import {
-  LOCAL_DEVICE_STORE,
-  LOCAL_ONE_TIME_PRE_KEYS_STORE,
-  LOCAL_SIGNED_PRE_KEYS_STORE,
-} from '@/db/RunarDB'
+import { LOCAL_DEVICE_STORE, LOCAL_ONE_TIME_PRE_KEYS_STORE, LOCAL_SIGNED_PRE_KEYS_STORE } from '@/db/RunarDB'
 
 import { LocalDeviceRepository } from '../LocalDeviceRepository'
-import type { LocalDeviceKeyMaterial } from '../types/LocalDeviceKeyMaterial'
+import type { LocalDeviceKeyMaterial } from '../types/localDeviceTypes'
 
 describe('LocalDeviceRepository', () => {
   it('loads the device and active signed pre-key with no remaining OTPKs', async () => {
@@ -23,8 +19,7 @@ describe('LocalDeviceRepository', () => {
 
   it('persists registration across all key stores in one transaction', async () => {
     const keyMaterial = createKeyMaterial()
-    const { db, deviceTable, oneTimePreKeyTable, signedPreKeyTable, transaction } =
-      createDb()
+    const { db, deviceTable, oneTimePreKeyTable, signedPreKeyTable, transaction } = createDb()
 
     await new LocalDeviceRepository(db).saveRegistration(keyMaterial)
 

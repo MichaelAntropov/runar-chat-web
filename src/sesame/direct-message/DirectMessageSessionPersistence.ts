@@ -1,13 +1,10 @@
 import type { RunarDb } from '@/db/RunarDB'
 import { LOCAL_ONE_TIME_PRE_KEYS_STORE, SESAME_DEVICES_STORE, SESAME_SESSIONS_STORE, SESAME_USERS_STORE } from '@/db/RunarDB'
 import { SesameRepository } from '@/sesame/SesameRepository'
-import type { SesameUserRecord } from '@/sesame/types/sesameTypes'
-import type { SesameUserProjection } from '@/sesame/types/sesameUserProjection'
+import type { SesameUserProjection, SesameUserRecord } from '@/sesame/types/sesameTypes'
 
-import type { DirectMessageInitiationData } from './types/DirectMessageInitiationData'
-import type { DirectMessagePersistence } from './types/DirectMessagePersistence'
-import { DirectMessageSessionError } from './types/DirectMessageSessionError'
-import type { DirectMessageSessionState } from './types/DirectMessageSessionState'
+import { DirectMessageSessionError } from './directMessageErrors'
+import type { DirectMessageInitiationData, DirectMessagePersistence, DirectMessageSessionState } from './directMessageTypes'
 
 type Projection = SesameUserProjection<DirectMessageSessionState, DirectMessageInitiationData>
 type UserRecord = SesameUserRecord<DirectMessageSessionState, DirectMessageInitiationData>

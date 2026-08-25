@@ -29,15 +29,17 @@ import type {
   SesameSessionAdapter,
   SesameSessionDecryptionResult,
   SesameSessionEncryptionResult,
-} from '@/sesame/types/sesameSessionAdapter'
-import type { SesameSessionRecord } from '@/sesame/types/sesameTypes'
+  SesameSessionRecord,
+} from '@/sesame/types/sesameTypes'
 
-import type { DirectMessageEncryptedMessage } from './types/DirectMessageEncryptedMessage'
-import type { DirectMessageInitiationData } from './types/DirectMessageInitiationData'
-import type { DirectMessagePreKeyBundle } from './types/DirectMessagePreKeyBundle'
-import type { DirectMessageSessionAdapterDependencies } from './types/DirectMessageSessionAdapterDependencies'
-import { DirectMessageSessionError } from './types/DirectMessageSessionError'
-import type { DirectMessageSessionState } from './types/DirectMessageSessionState'
+import { DirectMessageSessionError } from './directMessageErrors'
+import type {
+  DirectMessageEncryptedMessage,
+  DirectMessageInitiationData,
+  DirectMessagePreKeyBundle,
+  DirectMessageSessionAdapterDependencies,
+  DirectMessageSessionState,
+} from './directMessageTypes'
 
 const X25519_PUBLIC_KEY_LENGTH = 32
 const ED25519_PUBLIC_KEY_LENGTH = 32

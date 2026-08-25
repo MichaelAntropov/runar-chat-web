@@ -4,10 +4,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { generateInitialDeviceKeyMaterial } from '@/crypto/x3dh/x3dh'
 import type { InitialDeviceKeyMaterial } from '@/crypto/x3dh/x3dhTypes'
 
-import {
-  DeviceRegistrationService,
-  INITIAL_ONE_TIME_PRE_KEY_COUNT,
-} from '../deviceRegistrationService'
+import { DeviceRegistrationService, INITIAL_ONE_TIME_PRE_KEY_COUNT } from '../deviceRegistrationService'
 import type { RegisterDeviceResponse } from '../types/RegisterDeviceResponses'
 
 const USER_ID = '550e8400-e29b-41d4-a716-446655440000'
@@ -58,9 +55,7 @@ describe('DeviceRegistrationService', () => {
       register: vi.fn().mockResolvedValue(response),
     })
 
-    await expect(service.register({ userId: USER_ID, deviceName: 'Test browser' })).rejects.toThrow(
-      'unexpected one-time pre-key count'
-    )
+    await expect(service.register({ userId: USER_ID, deviceName: 'Test browser' })).rejects.toThrow('unexpected one-time pre-key count')
   })
 })
 

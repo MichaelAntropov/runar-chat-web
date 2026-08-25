@@ -1,15 +1,16 @@
 import { decryptSesameMessage, encryptSesameMessageForUser, ensureActiveSesameSessions } from '@/sesame/sesameMessageProcessing'
 import { reconcileSesameDeviceSet } from '@/sesame/sesameState'
-import type { SesameDeviceIdentityTuple, SesameUserRecord } from '@/sesame/types/sesameTypes'
-import type { SesameUserProjection } from '@/sesame/types/sesameUserProjection'
+import type { SesameDeviceIdentityTuple, SesameUserProjection, SesameUserRecord } from '@/sesame/types/sesameTypes'
 
-import type { DirectMessageCoordinatorDependencies } from './types/DirectMessageCoordinatorDependencies'
-import type { DirectMessageDecryptionInput } from './types/DirectMessageDecryptionInput'
-import type { DirectMessageDecryptionResult } from './types/DirectMessageDecryptionResult'
-import type { DirectMessageEncryptionResult } from './types/DirectMessageEncryptionResult'
-import type { DirectMessageInitiationData } from './types/DirectMessageInitiationData'
-import { DirectMessageSessionError } from './types/DirectMessageSessionError'
-import type { DirectMessageSessionState } from './types/DirectMessageSessionState'
+import { DirectMessageSessionError } from './directMessageErrors'
+import type {
+  DirectMessageCoordinatorDependencies,
+  DirectMessageDecryptionInput,
+  DirectMessageDecryptionResult,
+  DirectMessageEncryptionResult,
+  DirectMessageInitiationData,
+  DirectMessageSessionState,
+} from './directMessageTypes'
 
 type Projection = SesameUserProjection<DirectMessageSessionState, DirectMessageInitiationData>
 type UserRecord = SesameUserRecord<DirectMessageSessionState, DirectMessageInitiationData>

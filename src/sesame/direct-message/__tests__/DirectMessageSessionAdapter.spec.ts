@@ -2,17 +2,18 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { InitialDeviceKeyMaterial } from '@/crypto/x3dh/x3dhTypes'
 import { generateInitialDeviceKeyMaterial } from '@/crypto/x3dh/x3dh'
-import type { SesameRemoteDevice } from '@/sesame/types/sesameSessionAdapter'
-import type { SesameSessionRecord } from '@/sesame/types/sesameTypes'
+import type { SesameRemoteDevice, SesameSessionRecord } from '@/sesame/types/sesameTypes'
 
 import { DirectMessageSessionAdapter } from '../DirectMessageSessionAdapter'
-import type { DirectMessageEncryptedMessage } from '../types/DirectMessageEncryptedMessage'
-import type { DirectMessageInitiationData } from '../types/DirectMessageInitiationData'
-import type { DirectMessageLocalIdentity } from '../types/DirectMessageLocalIdentity'
-import type { DirectMessageLocalKeySource } from '../types/DirectMessageLocalKeySource'
-import type { DirectMessagePreKeyBundle } from '../types/DirectMessagePreKeyBundle'
-import { DirectMessageSessionError } from '../types/DirectMessageSessionError'
-import type { DirectMessageSessionState } from '../types/DirectMessageSessionState'
+import { DirectMessageSessionError } from '../directMessageErrors'
+import type {
+  DirectMessageEncryptedMessage,
+  DirectMessageInitiationData,
+  DirectMessageLocalIdentity,
+  DirectMessageLocalKeySource,
+  DirectMessagePreKeyBundle,
+  DirectMessageSessionState,
+} from '../directMessageTypes'
 
 const ALICE_USER_ID = '11111111-1111-4111-8111-111111111111'
 const ALICE_DEVICE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'

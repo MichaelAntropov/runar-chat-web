@@ -9,8 +9,11 @@ import type {
   SesameSessionAdapter,
   SesameSessionDecryptionResult,
   SesameSessionEncryptionResult,
-} from '@/sesame/types/sesameSessionAdapter'
-import type { SesameDeviceIdentity, SesameDeviceRecord, SesameSessionRecord, SesameUserRecord } from '@/sesame/types/sesameTypes'
+  SesameDeviceIdentity,
+  SesameDeviceRecord,
+  SesameSessionRecord,
+  SesameUserRecord,
+} from '@/sesame/types/sesameTypes'
 
 const LOCAL_USER_ID = 'local-user'
 const LOCAL_DEVICE_ID = 'local-device'

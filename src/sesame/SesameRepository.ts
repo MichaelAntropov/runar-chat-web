@@ -1,13 +1,9 @@
 import type { RunarDb } from '@/db/RunarDB'
 import { SESAME_DEVICES_STORE, SESAME_SESSIONS_STORE, SESAME_USERS_STORE } from '@/db/RunarDB'
 
-import type { SesameDevice } from './entities/SesameDeviceEntity'
-import type { SesameSession } from './entities/SesameSessionEntity'
-import type { SesameUser } from './entities/SesameUserEntity'
-import { SesameConcurrentModificationError } from './types/SesameConcurrentModificationError'
-import { SesameInvalidStateError } from './types/sesameErrors'
-import type { SesameDeviceRecord, SesameSessionRecord, SesameUserRecord } from './types/sesameTypes'
-import type { SesameUserProjection } from './types/sesameUserProjection'
+import type { SesameDevice, SesameSession, SesameUser } from './entities/sesameEntities'
+import { SesameConcurrentModificationError, SesameInvalidStateError } from './types/sesameErrors'
+import type { SesameDeviceRecord, SesameSessionRecord, SesameUserProjection, SesameUserRecord } from './types/sesameTypes'
 
 export class SesameRepository<SessionState, InitiationData = never> {
   constructor(private readonly db: RunarDb) {}

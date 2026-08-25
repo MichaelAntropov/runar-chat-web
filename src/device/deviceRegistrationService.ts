@@ -3,21 +3,10 @@ import { Base64 } from 'js-base64'
 import { generateInitialDeviceKeyMaterial } from '@/crypto/x3dh/x3dh'
 import type { InitialDeviceKeyMaterial } from '@/crypto/x3dh/x3dhTypes'
 
-import type { LocalDeviceKeyMaterial } from './types/LocalDeviceKeyMaterial'
-import type { RegisterDeviceRequest } from './types/RegisterDeviceRequest'
 import type { RegisterDeviceResponse } from './types/RegisterDeviceResponses'
+import type { DeviceRegistrationDependencies, LocalDeviceKeyMaterial, RegisterLocalDeviceOptions } from './types/localDeviceTypes'
 
 export const INITIAL_ONE_TIME_PRE_KEY_COUNT = 5
-
-export interface DeviceRegistrationDependencies {
-  generateKeyMaterial?: typeof generateInitialDeviceKeyMaterial
-  register: (request: RegisterDeviceRequest) => Promise<RegisterDeviceResponse>
-}
-
-export interface RegisterLocalDeviceOptions {
-  userId: string
-  deviceName: string
-}
 
 export class DeviceRegistrationService {
   private readonly generateKeyMaterial: typeof generateInitialDeviceKeyMaterial
@@ -91,10 +80,7 @@ async function exportRawPublicKey(key: CryptoKey): Promise<Uint8Array<ArrayBuffe
   return new Uint8Array(await globalThis.crypto.subtle.exportKey('raw', key))
 }
 
-function validateRegistrationResponse(
-  response: RegisterDeviceResponse,
-  expectedOtpks: number
-): void {
+function validateRegistrationResponse(response: RegisterDeviceResponse, expectedOtpks: number): void {
   if (!response.deviceId || !response.signedPreKeyId || !response.signedPreKeyCreatedAt) {
     throw new Error('Device registration response is missing required identifiers or timestamps.')
   }

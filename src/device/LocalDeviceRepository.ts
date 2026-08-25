@@ -1,16 +1,8 @@
 import type { RunarDb } from '@/db/RunarDB'
-import {
-  LOCAL_DEVICE_KEY,
-  LOCAL_DEVICE_STORE,
-  LOCAL_ONE_TIME_PRE_KEYS_STORE,
-  LOCAL_SIGNED_PRE_KEYS_STORE,
-} from '@/db/RunarDB'
+import { LOCAL_DEVICE_KEY, LOCAL_DEVICE_STORE, LOCAL_ONE_TIME_PRE_KEYS_STORE, LOCAL_SIGNED_PRE_KEYS_STORE } from '@/db/RunarDB'
 
-import type { LocalDevice } from './types/LocalDevice'
-import type { LocalDeviceKeyMaterial } from './types/LocalDeviceKeyMaterial'
-import type { LocalDeviceLoadResult } from './types/LocalDeviceLoadResult'
-import type { LocalOneTimePreKey } from './types/LocalOneTimePreKey'
-import type { LocalSignedPreKey } from './types/LocalSignedPreKey'
+import type { LocalDevice, LocalOneTimePreKey, LocalSignedPreKey } from './entities/localDeviceEntities'
+import type { LocalDeviceKeyMaterial, LocalDeviceLoadResult } from './types/localDeviceTypes'
 
 export class LocalDeviceRepository {
   constructor(private readonly db: RunarDb) {}
@@ -25,10 +17,7 @@ export class LocalDeviceRepository {
       this.db[LOCAL_ONE_TIME_PRE_KEYS_STORE].toArray(),
     ])
 
-    if (
-      !isLocalSignedPreKey(signedPreKeyValue) ||
-      oneTimePreKeyValues.some((key) => !isLocalOneTimePreKey(key))
-    ) {
+    if (!isLocalSignedPreKey(signedPreKeyValue) || oneTimePreKeyValues.some((key) => !isLocalOneTimePreKey(key))) {
       return invalidLocalDeviceResult()
     }
 
@@ -57,7 +46,7 @@ export class LocalDeviceRepository {
         await this.db[LOCAL_DEVICE_STORE].add(device, LOCAL_DEVICE_KEY)
         await this.db[LOCAL_SIGNED_PRE_KEYS_STORE].add(signedPreKey)
         await this.db[LOCAL_ONE_TIME_PRE_KEYS_STORE].bulkAdd(oneTimePreKeys)
-      },
+      }
     )
   }
 
@@ -136,13 +125,7 @@ function isKeyPair(value: unknown): value is { secretKey: CryptoKey; publicKey: 
 }
 
 function isCryptoKey(value: unknown): value is CryptoKey {
-  return (
-    !!value &&
-    typeof value === 'object' &&
-    'type' in value &&
-    'algorithm' in value &&
-    'usages' in value
-  )
+  return !!value && typeof value === 'object' && 'type' in value && 'algorithm' in value && 'usages' in value
 }
 
 function isValidDate(value: unknown): value is Date {

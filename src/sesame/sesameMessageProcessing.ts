@@ -6,43 +6,22 @@ import {
   listSesameDecryptionCandidates,
 } from './sesameState'
 import { SesameInvalidStateError } from './types/sesameErrors'
-import type { SesameRemoteDevice, SesameSessionAdapter, SesameSessionDecryptionResult } from './types/sesameSessionAdapter'
 import type {
+  SesameDecryptionInput,
+  SesameDecryptionResult,
   SesameDeviceIdentity,
   SesameDeviceIdentityTuple,
   SesameDeviceRecord,
   SesameDeviceSetChange,
   SesameDeviceSetReconciliationOptions,
+  SesameEncryptedDeviceMessage,
+  SesameEncryptionResult,
+  SesameRemoteDevice,
+  SesameSessionAdapter,
+  SesameSessionDecryptionResult,
   SesameSessionRecord,
   SesameUserRecord,
 } from './types/sesameTypes'
-
-export interface SesameEncryptedDeviceMessage<EncryptedMessage> {
-  readonly deviceId: string
-  readonly sessionId: string
-  readonly encryptedMessage: EncryptedMessage
-}
-
-export interface SesameEncryptionResult<SessionState, InitiationData, EncryptedMessage> {
-  readonly userRecord: SesameUserRecord<SessionState, InitiationData>
-  readonly deviceMessages: readonly SesameEncryptedDeviceMessage<EncryptedMessage>[]
-}
-
-export interface SesameDecryptionInput<EncryptedMessage> {
-  readonly senderUserId: string
-  readonly senderDeviceId: string
-  readonly senderIdentity: SesameDeviceIdentity | null
-  readonly encryptedMessage: EncryptedMessage
-  readonly processedAt: number
-}
-
-export interface SesameDecryptionResult<SessionState, InitiationData> {
-  readonly userRecord: SesameUserRecord<SessionState, InitiationData>
-  readonly plaintext: Uint8Array<ArrayBuffer>
-  readonly sessionId: string
-  readonly sessionCreated: boolean
-  readonly deviceChange: SesameDeviceSetChange | null
-}
 
 export async function ensureActiveSesameSessions<SessionState, InitiationData, EncryptedMessage>(
   userRecord: SesameUserRecord<SessionState, InitiationData>,

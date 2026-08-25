@@ -2,12 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { RunarDb } from '@/db/RunarDB'
 import { SESAME_DEVICES_STORE, SESAME_SESSIONS_STORE, SESAME_USERS_STORE } from '@/db/RunarDB'
-import type { SesameDevice } from '@/sesame/entities/SesameDeviceEntity'
-import type { SesameSession } from '@/sesame/entities/SesameSessionEntity'
-import type { SesameUser } from '@/sesame/entities/SesameUserEntity'
+import type { SesameDevice, SesameSession, SesameUser } from '@/sesame/entities/sesameEntities'
 
 import { SesameRepository } from '../SesameRepository'
-import { SesameConcurrentModificationError } from '../types/SesameConcurrentModificationError'
+import { SesameConcurrentModificationError } from '../types/sesameErrors'
 import type { SesameUserRecord } from '../types/sesameTypes'
 
 interface TestSessionState {
