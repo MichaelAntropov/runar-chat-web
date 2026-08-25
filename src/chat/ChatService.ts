@@ -18,6 +18,7 @@ import { useDeviceStore } from '../device/deviceStore'
 
 import { chatApi } from './api/chatApi'
 import { useChatsStore } from './chatStore'
+import { getDirectMessageSendingService } from './directMessageCoordinator'
 import {
   establishSecretKeyWithSender,
   generateSecretKeyForKeyBundle,
@@ -98,7 +99,6 @@ export function openSavedMessagesChat(): Chat | null {
  * @param content The string content to send.
  */
 export async function sendMessageInCurrentChat(content: string): Promise<void> {
-  assertLegacyDirectMessagingEnabled()
   return enqueueRatchetOperation(() => sendMessageInCurrentChatInternal(content))
 }
 
@@ -121,8 +121,20 @@ async function sendMessageInCurrentChatInternal(content: string): Promise<void> 
     `sendMessageInCurrentChat() - Sending message in chat(${chat.id}) to ${chat.contact.username}`,
   )
 
-  const existingChatStates = await ensureChatStatesForChat(chat)
-  if (chat.contact.userId === userStore.principal.id && existingChatStates.length === 0) {
+  const textMessage: TextMessage = {
+    type: 'TEXT',
+    ultimateReceiverId: chat.contact.userId,
+    content,
+  }
+
+  const plaintext = Uint8Array.from(new TextEncoder().encode(JSON.stringify(textMessage)))
+  const response = await getDirectMessageSendingService().send(
+    chat.contact.userId,
+    userStore.principal.id,
+    plaintext,
+  )
+
+  if (response === null) {
     const createdAt = Date.now()
     const localMessage: StoredMessage = {
       id: crypto.randomUUID(),
@@ -138,13 +150,6 @@ async function sendMessageInCurrentChatInternal(content: string): Promise<void> 
     return
   }
 
-  const textMessage: TextMessage = {
-    type: 'TEXT',
-    ultimateReceiverId: chat.contact.userId,
-    content,
-  }
-
-  const response = await sendEncryptedMessage(chat, () => textMessage)
   console.log(`sendMessageInCurrentChat() - Send message response: `, response)
 
   const newStoredMessage: StoredMessage = {

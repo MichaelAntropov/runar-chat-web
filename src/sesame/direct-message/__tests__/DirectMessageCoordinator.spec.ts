@@ -88,6 +88,16 @@ describe('DirectMessageCoordinator', () => {
     await expect(coordinator.encryptForUser(REMOTE_USER_ID, bytes('hello'))).rejects.toThrow(DirectMessageSessionError)
     expect(persistence.saveUserRecord).not.toHaveBeenCalled()
   })
+
+  it('persists an explicitly allowed empty device set for linked-device synchronization', async () => {
+    const persistence = new TestPersistence()
+    const coordinator = createCoordinator(persistence, new TestAdapter(), [])
+
+    const result = await coordinator.encryptForUser(LOCAL_USER_ID, bytes('saved message'), { allowEmptyDeviceSet: true })
+
+    expect(result.deviceMessages).toEqual([])
+    expect(persistence.saveUserRecord).toHaveBeenCalledOnce()
+  })
 })
 
 class TestPersistence implements DirectMessagePersistence {

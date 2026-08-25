@@ -113,6 +113,10 @@ export interface DirectMessageEncryptionResult {
   readonly deviceMessages: readonly SesameEncryptedDeviceMessage<DirectMessageEncryptedMessage>[]
 }
 
+export interface DirectMessageEncryptionOptions {
+  readonly allowEmptyDeviceSet?: boolean
+}
+
 export interface DirectMessageDecryptionInput {
   readonly senderUserId: string
   readonly senderDeviceId: string

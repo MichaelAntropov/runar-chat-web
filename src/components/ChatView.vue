@@ -50,7 +50,7 @@ const isCurrentRecipientBlocked = computed(() => {
   const userId = chatStore.currentChat?.contact.userId
   return userId ? blockingStore.isBlocked(userId) : false
 })
-const isMessagingUnavailable = computed(() => !runtimePolicy.legacyDirectMessagingEnabled)
+const isMessagingUnavailable = computed(() => !runtimePolicy.directMessageSendingEnabled)
 
 const messageDateGroups = computed<MessageDateGroup[]>(() => {
   const groups: MessageDateGroup[] = []

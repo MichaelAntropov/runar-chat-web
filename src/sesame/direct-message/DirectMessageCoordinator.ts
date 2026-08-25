@@ -7,6 +7,7 @@ import type {
   DirectMessageCoordinatorDependencies,
   DirectMessageDecryptionInput,
   DirectMessageDecryptionResult,
+  DirectMessageEncryptionOptions,
   DirectMessageEncryptionResult,
   DirectMessageInitiationData,
   DirectMessageSessionState,
@@ -24,7 +25,11 @@ export class DirectMessageCoordinator {
     this.now = dependencies.now ?? (() => Date.now())
   }
 
-  encryptForUser(recipientUserId: string, plaintext: Uint8Array<ArrayBuffer>): Promise<DirectMessageEncryptionResult> {
+  encryptForUser(
+    recipientUserId: string,
+    plaintext: Uint8Array<ArrayBuffer>,
+    options: DirectMessageEncryptionOptions = {}
+  ): Promise<DirectMessageEncryptionResult> {
     return this.runForUser(recipientUserId, async () => {
       const previous = await this.loadProjection(recipientUserId)
       const observedAt = this.now()
@@ -43,7 +48,7 @@ export class DirectMessageCoordinator {
       )
       const encrypted = await encryptSesameMessageForUser(prepared, plaintext, this.dependencies.sessionAdapter, this.now())
 
-      if (encrypted.deviceMessages.length === 0) {
+      if (encrypted.deviceMessages.length === 0 && !options.allowEmptyDeviceSet) {
         throw new DirectMessageSessionError('The recipient has no active messaging devices')
       }
 
