@@ -1,6 +1,9 @@
 import type { InitDeviceKeyBundle } from '@/chat/types/key-bundle/InitKeyBundleResponse'
+import type { InboundMessage } from '@/chat/types/message/InboundMessage'
 import type { DeviceMessagePayload } from '@/chat/types/message/MessagePayload'
+import type { DoubleRatchetCipherText, EncodedDoubleRatchetHeader } from '@/crypto/double-ratchet/doubleRatchetTypes'
 import { uint8ArrayToBase64 } from '@/core/utils'
+import { DirectMessageSessionError } from '@/sesame/direct-message/directMessageErrors'
 import type { DirectMessageEncryptedMessage, DirectMessagePreKeyBundle } from '@/sesame/direct-message/directMessageTypes'
 import type { SesameEncryptedDeviceMessage } from '@/sesame/types/sesameTypes'
 
@@ -31,5 +34,19 @@ export function directMessageToApiPayload(
     senderEphemeralKey: encrypted.senderEphemeralKey ? uint8ArrayToBase64(encrypted.senderEphemeralKey) : null,
     cipherPayload: uint8ArrayToBase64(encrypted.cipherPayload),
     encryptedHeader: uint8ArrayToBase64(encrypted.encryptedHeader),
+  }
+}
+
+export function directMessageFromInboundMessage(message: InboundMessage): DirectMessageEncryptedMessage {
+  if (message.encryptedHeader === null) {
+    throw new DirectMessageSessionError('An inbound direct message is missing its encrypted header')
+  }
+
+  return {
+    receiverSignedPreKeyId: message.signedPreKeyIdUsed,
+    receiverOneTimePreKeyId: message.oneTimePreKeyIdUsed,
+    senderEphemeralKey: message.senderEphemeralKey,
+    encryptedHeader: message.encryptedHeader as EncodedDoubleRatchetHeader,
+    cipherPayload: message.cipherPayload as DoubleRatchetCipherText,
   }
 }

@@ -10,6 +10,7 @@ import { DirectMessageSessionAdapter } from '@/sesame/direct-message/DirectMessa
 import { DirectMessageSessionPersistence } from '@/sesame/direct-message/DirectMessageSessionPersistence'
 import { DirectMessageSessionError } from '@/sesame/direct-message/directMessageErrors'
 
+import { DirectMessageReceivingService } from './DirectMessageReceivingService'
 import { DirectMessageSendingService } from './DirectMessageSendingService'
 import { directMessagePreKeyBundleFromApi } from './directMessageTransport'
 
@@ -17,6 +18,7 @@ const MAX_DEVICES_PER_USER = 5
 const MAX_SESSIONS_PER_DEVICE = 5
 
 let coordinatorsByDatabase = new WeakMap<RunarDb, Map<string, DirectMessageCoordinator>>()
+let receivingServicesByCoordinator = new WeakMap<DirectMessageCoordinator, DirectMessageReceivingService>()
 let sendingServicesByCoordinator = new WeakMap<DirectMessageCoordinator, DirectMessageSendingService>()
 
 export function getDirectMessageCoordinator(): DirectMessageCoordinator {
@@ -50,8 +52,19 @@ export function getDirectMessageSendingService(): DirectMessageSendingService {
   return sendingService
 }
 
+export function getDirectMessageReceivingService(): DirectMessageReceivingService {
+  const coordinator = getDirectMessageCoordinator()
+  const existing = receivingServicesByCoordinator.get(coordinator)
+  if (existing) return existing
+
+  const receivingService = new DirectMessageReceivingService(coordinator)
+  receivingServicesByCoordinator.set(coordinator, receivingService)
+  return receivingService
+}
+
 export function clearDirectMessageCoordinator(): void {
   coordinatorsByDatabase = new WeakMap()
+  receivingServicesByCoordinator = new WeakMap()
   sendingServicesByCoordinator = new WeakMap()
 }
 

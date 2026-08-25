@@ -111,7 +111,7 @@ export const useConnectionStore = defineStore('connection-store', () => {
       )[]
 
       const canConnect =
-        runtimePolicy.legacyDirectMessagingEnabled &&
+        runtimePolicy.directMessageReceivingEnabled &&
         isAuthenticated &&
         authStatus === 'upgraded' &&
         registrationStatus === 'registered' &&

@@ -9,8 +9,6 @@ import { runtimePolicy } from '@/core/config/runtimePolicy'
 import { parseUtcTimestamp, uint8ArrayToBase64 } from '@/core/utils'
 import { chatStateRepository } from '@/db/repositories/ChatStateRepository'
 import { pendingReadReceiptRepository } from '@/db/repositories/PendingReadReceiptRepository'
-import { preKeyRepository } from '@/db/repositories/PreKeyRepository'
-import type { OneTimePreKeyState } from '@/device/types/OneTimePreKeyState'
 import { useSettingsStore } from '@/settings/settingsStore'
 import { useUserStore } from '@/user/userStore'
 
@@ -18,20 +16,19 @@ import { useDeviceStore } from '../device/deviceStore'
 
 import { chatApi } from './api/chatApi'
 import { useChatsStore } from './chatStore'
-import { getDirectMessageSendingService } from './directMessageCoordinator'
 import {
-  establishSecretKeyWithSender,
+  getDirectMessageReceivingService,
+  getDirectMessageSendingService,
+} from './directMessageCoordinator'
+import {
   generateSecretKeyForKeyBundle,
   verifyPreKeySignature,
 } from './crypto/dhke'
 import {
-  initRatchetAsReceiver,
   initRatchetAsSender,
-  ratchetDecrypt,
   ratchetEncrypt,
 } from './crypto/ratchet'
 import type { GeneratedSecretKeyBundle } from './crypto/types/GeneratedSecretKeyBundle'
-import type { InitialRatchetKeys } from './crypto/types/InitialRatchetKeys'
 import type { RatchetEncryptResult } from './crypto/types/RatchetEncryptResult'
 import type { SkippedMessageKey } from './crypto/types/SkippedMessage'
 import type { ChatState } from './types/chat/ChatState'
@@ -39,7 +36,6 @@ import type { EncodedMessage } from './types/chat/Message'
 import type { NoOpMessage } from './types/chat/NoOpMessage'
 import type { ReadReceiptMessage } from './types/chat/ReadReceiptMessage'
 import type { TextMessage } from './types/chat/TextMessage'
-import type { IdentityKey } from './types/identity-key/IdentityKey'
 import type { InitDeviceKeyBundle, InitKeyBundle } from './types/key-bundle/InitKeyBundleResponse'
 import { DeviceSetMismatchError } from './types/message/DeviceSetMismatchError'
 import type { InboundMessage } from './types/message/InboundMessage'
@@ -402,7 +398,7 @@ async function flushPendingReadReceiptsInternal(): Promise<void> {
  * Fetches queued delivery receipts and messages, then reconciles or decrypts them.
  */
 export async function fetchAndProcessOfflineEvents() {
-  if (!runtimePolicy.legacyDirectMessagingEnabled) return
+  if (!runtimePolicy.directMessageReceivingEnabled) return
   const deviceStore = useDeviceStore()
   if (!deviceStore.deviceId) {
     console.warn('fetchAndProcessOfflineEvents() - No device setup!')
@@ -429,14 +425,7 @@ export async function fetchAndProcessOfflineEvents() {
  * @param msg The inbound message data.
  */
 export function decryptInboundMessageAndPushToChat(msg: InboundMessage): Promise<void> {
-  assertLegacyDirectMessagingEnabled()
   return enqueueRatchetOperation(() => decryptInboundMessageAndPushToChatInternal(msg))
-}
-
-function assertLegacyDirectMessagingEnabled(): void {
-  if (!runtimePolicy.legacyDirectMessagingEnabled) {
-    throw new Error('Legacy direct messaging is disabled while the Sesame runtime is integrated.')
-  }
 }
 
 async function decryptInboundMessageAndPushToChatInternal(msg: InboundMessage): Promise<void> {
@@ -453,102 +442,13 @@ async function decryptInboundMessageAndPushToChatInternal(msg: InboundMessage): 
     await chatStore.hydrate()
   }
 
-  let chatState: ChatState | undefined = await getEstablishedChatStateForDeviceId(
-    msg.senderDeviceId,
-  )
-
-  if (!msg.encryptedHeader) {
-    console.error(
-      `decryptInboundMessageAndPushToChat() - No encryptedHeader in message from ${msg.senderId} and deviceId=${msg.senderDeviceId}!`,
+  const content = await getDirectMessageReceivingService().receive(msg)
+  if (content === null) {
+    console.warn(
+      `decryptInboundMessageAndPushToChat() - No Sesame session could decrypt message=${msg.messageId}`,
     )
     return
   }
-
-  if (!chatState) {
-    if (!msg.senderEphemeralKey) {
-      console.error(
-        `decryptInboundMessageAndPushToChat() - Cannot establish session with ${msg.senderId} and deviceId=${msg.senderDeviceId}: senderEphemeralKey is missing.`,
-      )
-      return
-    }
-    console.log(
-      `decryptInboundMessageAndPushToChat() - No existing ChatState with ${msg.senderId} and device ${msg.senderDeviceId}. Establishing new session...`,
-    )
-
-    let oneTimePreKey: OneTimePreKeyState | undefined
-    if (msg.oneTimePreKeyIdUsed) {
-      oneTimePreKey = await preKeyRepository.getPreKeyById(msg.oneTimePreKeyIdUsed)
-      await preKeyRepository.deletePreKeyById(msg.oneTimePreKeyIdUsed)
-      if (!oneTimePreKey) throw new Error('One Time Pre Key Used but not found!')
-    }
-
-    const senderIdentityKeys: IdentityKey[] = await chatApi.getIdentityKeys(msg.senderId)
-    const senderDeviceIdentityKey: IdentityKey | undefined = senderIdentityKeys.find(
-      (key) => key.deviceId === msg.senderDeviceId,
-    )
-    if (!senderDeviceIdentityKey || !senderDeviceIdentityKey.x25519PublicKey) {
-      throw new Error(`Could not find identity key for sender device ${msg.senderDeviceId}`)
-    }
-
-    const receiverIdentity = deviceStore.identityX25519
-    const receiverSignedPreKey = deviceStore.preKey
-    if (!receiverIdentity.keyPair || !receiverSignedPreKey.keyPair) {
-      throw new Error('Local device keys are not initialized.')
-    }
-
-    const initialKeys: InitialRatchetKeys = await establishSecretKeyWithSender(
-      senderDeviceIdentityKey,
-      msg.senderEphemeralKey,
-      receiverIdentity,
-      receiverSignedPreKey,
-      oneTimePreKey!, // Pass even if undefined
-    )
-
-    console.log(
-      `Calculated SK: ${uint8ArrayToBase64(new Uint8Array(await crypto.subtle.exportKey('raw', initialKeys.rootKey)))}`,
-    )
-
-    console.log(
-      `Pre key public: ${uint8ArrayToBase64(new Uint8Array(await crypto.subtle.exportKey('raw', receiverSignedPreKey.keyPair.publicKey)))}`,
-    )
-
-    console.log(
-      `DH receiving public key: ${uint8ArrayToBase64(new Uint8Array(await crypto.subtle.exportKey('raw', receiverSignedPreKey.keyPair.publicKey)))}`,
-    )
-
-    chatState = createNewChatState(
-      msg.senderId,
-      senderDeviceIdentityKey.deviceId,
-      senderDeviceIdentityKey.x25519PublicKey,
-    )
-
-    const secretKeyRaw = new Uint8Array(await crypto.subtle.exportKey('raw', initialKeys.rootKey))
-    await initRatchetAsReceiver(
-      chatState,
-      secretKeyRaw,
-      receiverSignedPreKey.keyPair.privateKey,
-      receiverSignedPreKey.keyPair.publicKey,
-      initialKeys.sharedHeaderKey,
-      initialKeys.sharedNextHeaderKey,
-    )
-    await chatStateRepository.saveChatState(chatState)
-    console.log(`ChatState for device=${msg.senderDeviceId} established!`)
-  }
-
-  const senderIdEncoded = new TextEncoder().encode(msg.senderId)
-  const receiverIdEncoded = new TextEncoder().encode(userStore.principal.id)
-
-  const associatedData = new Uint8Array(senderIdEncoded.length + receiverIdEncoded.length)
-  associatedData.set(senderIdEncoded)
-  associatedData.set(receiverIdEncoded, senderIdEncoded.length)
-
-  const content: Uint8Array = await ratchetDecrypt(
-    chatState,
-    msg.encryptedHeader,
-    msg.cipherPayload,
-    associatedData,
-  )
-  await chatStateRepository.updateChatState(chatState)
 
   const encodedMessage: unknown = JSON.parse(new TextDecoder().decode(content))
 
@@ -709,13 +609,6 @@ async function createContactAndChatForUserId(userId: string) {
 
   const chatStore = useChatsStore()
   chatStore.createNewChatFromContact(newContact)
-}
-
-async function getEstablishedChatStateForDeviceId(
-  deviceId: string,
-): Promise<ChatState | undefined> {
-  console.log('Get existing ChatState for device...')
-  return chatStateRepository.getFirstChatStateByDeviceId(deviceId)
 }
 
 async function getEstablishedChatStatesForChat(chat: Chat): Promise<ChatState[]> {
