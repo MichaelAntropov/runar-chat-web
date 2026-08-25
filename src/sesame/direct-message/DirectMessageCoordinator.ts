@@ -18,6 +18,7 @@ type UserRecord = SesameUserRecord<DirectMessageSessionState, DirectMessageIniti
 
 export class DirectMessageCoordinator {
   private readonly projections = new Map<string, Projection | null>()
+  private readonly deviceSetsNeedingRefresh = new Set<string>()
   private readonly userOperations = new Map<string, Promise<void>>()
   private readonly now: () => number
 
@@ -33,15 +34,18 @@ export class DirectMessageCoordinator {
     return this.runForUser(recipientUserId, async () => {
       const previous = await this.loadProjection(recipientUserId)
       const observedAt = this.now()
-      const activeDevices = await this.dependencies.loadDeviceIdentities(recipientUserId)
-      const reconciled = reconcileSesameDeviceSet(
-        previous?.userRecord ?? null,
-        recipientUserId,
-        activeDevices,
-        this.reconciliationOptions(observedAt)
-      )
+      const shouldRefreshDeviceSet =
+        previous === null || previous.userRecord.staleSince !== null || this.deviceSetsNeedingRefresh.has(recipientUserId)
+      const currentUserRecord = shouldRefreshDeviceSet
+        ? reconcileSesameDeviceSet(
+            previous?.userRecord ?? null,
+            recipientUserId,
+            await this.dependencies.loadDeviceIdentities(recipientUserId),
+            this.reconciliationOptions(observedAt)
+          ).userRecord
+        : previous.userRecord
       const prepared = await ensureActiveSesameSessions(
-        reconciled.userRecord,
+        currentUserRecord,
         this.dependencies.sessionAdapter,
         observedAt,
         this.dependencies.limits.maxSessionsPerDevice
@@ -53,6 +57,7 @@ export class DirectMessageCoordinator {
       }
 
       await this.saveUserRecord(recipientUserId, previous, encrypted.userRecord)
+      if (shouldRefreshDeviceSet) this.deviceSetsNeedingRefresh.delete(recipientUserId)
       return { deviceMessages: encrypted.deviceMessages }
     })
   }
@@ -106,12 +111,13 @@ export class DirectMessageCoordinator {
     })
   }
 
-  clearCachedUser(userId: string): void {
-    this.projections.delete(userId)
+  invalidateDeviceSet(userId: string): void {
+    this.deviceSetsNeedingRefresh.add(userId)
   }
 
   clearCache(): void {
     this.projections.clear()
+    this.deviceSetsNeedingRefresh.clear()
   }
 
   private async loadProjection(userId: string): Promise<Projection | null> {

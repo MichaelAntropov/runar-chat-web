@@ -7,7 +7,7 @@ import { directMessageToApiPayload } from './directMessageTransport'
 
 const MAX_DEVICE_SET_RETRIES = 2
 
-type SendingCoordinator = Pick<DirectMessageCoordinator, 'clearCachedUser' | 'encryptForUser'>
+type SendingCoordinator = Pick<DirectMessageCoordinator, 'encryptForUser' | 'invalidateDeviceSet'>
 
 export class DirectMessageSendingService {
   constructor(
@@ -60,8 +60,12 @@ export class DirectMessageSendingService {
         throw error
       }
 
-      const affectedUserIds = new Set([recipientUserId, localUserId, ...Object.keys(error.missingDeviceIds), ...Object.keys(error.invalidDeviceIds)])
-      for (const userId of affectedUserIds) this.coordinator.clearCachedUser(userId)
+      const affectedUserIds = new Set([...Object.keys(error.missingDeviceIds), ...Object.keys(error.invalidDeviceIds)])
+      if (affectedUserIds.size === 0) {
+        affectedUserIds.add(recipientUserId)
+        affectedUserIds.add(localUserId)
+      }
+      for (const userId of affectedUserIds) this.coordinator.invalidateDeviceSet(userId)
 
       return this.sendAttempt(recipientUserId, localUserId, recipientPlaintext, localDevicePlaintext, retryCount + 1)
     }

@@ -33,7 +33,8 @@ describe('DirectMessageCoordinator', () => {
   it('serializes sends per user and caches the committed projection', async () => {
     const persistence = new TestPersistence()
     const adapter = new TestAdapter()
-    const coordinator = createCoordinator(persistence, adapter)
+    const loadDeviceIdentities = vi.fn(async () => [deviceIdentity()])
+    const coordinator = createCoordinator(persistence, adapter, loadDeviceIdentities)
 
     const [first, second] = await Promise.all([
       coordinator.encryptForUser(REMOTE_USER_ID, bytes('first')),
@@ -43,8 +44,24 @@ describe('DirectMessageCoordinator', () => {
     expect(first.deviceMessages).toHaveLength(1)
     expect(second.deviceMessages).toHaveLength(1)
     expect(persistence.loadUserRecord).toHaveBeenCalledOnce()
+    expect(loadDeviceIdentities).toHaveBeenCalledOnce()
     expect(persistence.savedVersions).toEqual([1, 2])
     expect(sessionStep(persistence.current!.userRecord.devices[0].activeSession!.state)).toBe(2)
+  })
+
+  it('refreshes a persisted device set only after explicit invalidation', async () => {
+    const persistence = new TestPersistence(existingProjection())
+    const adapter = new TestAdapter()
+    const loadDeviceIdentities = vi.fn(async () => [deviceIdentity()])
+    const coordinator = createCoordinator(persistence, adapter, loadDeviceIdentities)
+
+    await coordinator.encryptForUser(REMOTE_USER_ID, bytes('first'))
+    expect(loadDeviceIdentities).not.toHaveBeenCalled()
+
+    coordinator.invalidateDeviceSet(REMOTE_USER_ID)
+    await coordinator.encryptForUser(REMOTE_USER_ID, bytes('second'))
+
+    expect(loadDeviceIdentities).toHaveBeenCalledOnce()
   })
 
   it('atomically requests one-time pre-key consumption for a new receiving session', async () => {
@@ -83,7 +100,7 @@ describe('DirectMessageCoordinator', () => {
 
   it('does not persist a send when the recipient has no active devices', async () => {
     const persistence = new TestPersistence()
-    const coordinator = createCoordinator(persistence, new TestAdapter(), [])
+    const coordinator = createCoordinator(persistence, new TestAdapter(), async () => [])
 
     await expect(coordinator.encryptForUser(REMOTE_USER_ID, bytes('hello'))).rejects.toThrow(DirectMessageSessionError)
     expect(persistence.saveUserRecord).not.toHaveBeenCalled()
@@ -91,7 +108,7 @@ describe('DirectMessageCoordinator', () => {
 
   it('persists an explicitly allowed empty device set for linked-device synchronization', async () => {
     const persistence = new TestPersistence()
-    const coordinator = createCoordinator(persistence, new TestAdapter(), [])
+    const coordinator = createCoordinator(persistence, new TestAdapter(), async () => [])
 
     const result = await coordinator.encryptForUser(LOCAL_USER_ID, bytes('saved message'), { allowEmptyDeviceSet: true })
 
@@ -176,12 +193,16 @@ class TestAdapter implements SesameSessionAdapter<DirectMessageSessionState, Dir
   }
 }
 
-function createCoordinator(persistence: DirectMessagePersistence, adapter: TestAdapter, devices = [deviceIdentity()]): DirectMessageCoordinator {
+function createCoordinator(
+  persistence: DirectMessagePersistence,
+  adapter: TestAdapter,
+  loadDeviceIdentities: () => Promise<readonly ReturnType<typeof deviceIdentity>[]> = async () => [deviceIdentity()]
+): DirectMessageCoordinator {
   let timestamp = 10
   return new DirectMessageCoordinator({
     persistence,
     sessionAdapter: adapter,
-    loadDeviceIdentities: async () => devices,
+    loadDeviceIdentities,
     localAddress: { userId: LOCAL_USER_ID, deviceId: LOCAL_DEVICE_ID },
     limits: { maxDevicesPerUser: 5, maxSessionsPerDevice: 5 },
     now: () => timestamp++,

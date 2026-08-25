@@ -94,14 +94,14 @@ describe('DirectMessageSendingService', () => {
 
     expect(sendPayload).toHaveBeenCalledTimes(2)
     expect(coordinator.encryptForUser).toHaveBeenCalledTimes(4)
-    expect(coordinator.clearCachedUser).toHaveBeenCalledWith(RECIPIENT_USER_ID)
-    expect(coordinator.clearCachedUser).toHaveBeenCalledWith(LOCAL_USER_ID)
+    expect(coordinator.invalidateDeviceSet).toHaveBeenCalledOnce()
+    expect(coordinator.invalidateDeviceSet).toHaveBeenCalledWith(RECIPIENT_USER_ID)
   })
 })
 
 function createCoordinator(messagesByUser: Record<string, EncryptedDeviceMessage[]>) {
   return {
-    clearCachedUser: vi.fn(),
+    invalidateDeviceSet: vi.fn(),
     encryptForUser: vi.fn(async (userId: string, plaintext: Uint8Array<ArrayBuffer>, options?: DirectMessageEncryptionOptions) => {
       void plaintext
       void options
