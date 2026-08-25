@@ -9,6 +9,7 @@ import {
   sendMessageInCurrentChat,
 } from '@/chat/ChatService'
 import { useChatsStore } from '@/chat/chatStore'
+import { isMessageListAtBottom } from '@/chat/chatWindow'
 import type { StoredMessage } from '@/chat/types/chat/StoredMessage'
 import { MessageReceiverBlockedError } from '@/chat/types/message/MessageReceiverBlockedError'
 import { runtimePolicy } from '@/core/config/runtimePolicy'
@@ -275,7 +276,7 @@ function handleScrollChange() {
   if (messagesContainer.value) {
     showStickyDate()
     const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value
-    const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1 // -1 for precision
+    const isAtBottom = isMessageListAtBottom(scrollTop, clientHeight, scrollHeight)
     if (chatStore.currentChat && isAtBottom) {
       chatStore.currentChat.autoScroll = true
       chatStore.currentChat.scrollPosition = null
@@ -296,7 +297,8 @@ async function loadMessagesOnScroll() {
 
   const { scrollTop, scrollHeight, clientHeight } = container
   const shouldLoadPrevious = scrollTop < 1 && chat.messagesOffset !== 0
-  const shouldLoadNext = scrollTop + clientHeight >= scrollHeight - 1 && !chat.loadLatest
+  const shouldLoadNext =
+    isMessageListAtBottom(scrollTop, clientHeight, scrollHeight) && !chat.loadLatest
   if (!shouldLoadPrevious && !shouldLoadNext) return
 
   const anchorMessage = shouldLoadPrevious ? messages[0] : messages[messages.length - 1]
@@ -434,7 +436,7 @@ async function reloadLatestOnScrollEnd() {
   if (messagesContainer.value) {
     const { scrollTop, scrollHeight, clientHeight } = messagesContainer.value
 
-    if (scrollTop + clientHeight >= scrollHeight - 1) {
+    if (isMessageListAtBottom(scrollTop, clientHeight, scrollHeight)) {
       console.log('Reload messages from DB after smooth scroll')
       await chatStore.loadMessagesFromDB()
       messagesContainer.value.removeEventListener('scroll', reloadLatestOnScrollEnd)
@@ -445,22 +447,29 @@ async function reloadLatestOnScrollEnd() {
 watch(
   () => chatStore.currentChatMessages.map((message) => message.id),
   async (newMessages) => {
+    const container = messagesContainer.value
+    const wasAtBottom = container
+      ? isMessageListAtBottom(container.scrollTop, container.clientHeight, container.scrollHeight)
+      : false
+    const shouldFollowLatest = chatStore.currentChat?.autoScroll || wasAtBottom
+
     if (
       newMessages.length > 0 &&
-      chatStore.currentChat?.autoScroll &&
-      messagesContainer.value &&
+      shouldFollowLatest &&
+      container &&
       !isLoadingMessagePage
     ) {
+      if (chatStore.currentChat) chatStore.currentChat.autoScroll = true
       await nextTick() // Wait for Vue to re-render messages
 
       console.log('Auto scroll....')
 
-      messagesContainer.value.scrollTo({
-        top: messagesContainer.value.scrollHeight,
+      container.scrollTo({
+        top: container.scrollHeight,
         behavior: 'smooth',
       })
 
-      messagesContainer.value.addEventListener('scroll', reloadLatestOnScrollEnd)
+      container.addEventListener('scroll', reloadLatestOnScrollEnd)
     }
     await observeMessageBubbles()
   },

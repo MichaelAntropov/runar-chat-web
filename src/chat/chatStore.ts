@@ -11,6 +11,7 @@ import { useUserStore } from '@/user/userStore'
 
 import type { Contact } from '../contacts/types/Contact'
 
+import { shouldAppendToCurrentMessageWindow } from './chatWindow'
 import type { Chat } from './types/chat/Chat'
 import type { StoredMessage } from './types/chat/StoredMessage'
 import type { DeliveryReceipt } from './types/receipt/DeliveryReceipt'
@@ -303,10 +304,11 @@ export const useChatsStore = defineStore('chats', () => {
       chat.lastMessage = message.content
       chat.lastMessageTime = message.createdAt
 
-      const isCurrentChat = chat.id === currentChat.value?.id
       const isIncoming = !isSelfMessage && message.senderId === chat.contact.userId
 
-      if (isCurrentChat && chat.autoScroll) {
+      if (
+        shouldAppendToCurrentMessageWindow(chat.id, currentChat.value?.id, chat.loadLatest)
+      ) {
         currentChatMessages.value.push(message)
       }
 
