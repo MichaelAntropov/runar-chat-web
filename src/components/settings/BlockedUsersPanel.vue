@@ -146,8 +146,7 @@ async function confirmAction() {
 }
 
 function formatDate(dateString: string): string {
-  const utcString = dateString.endsWith('Z') ? dateString : `${dateString}Z`
-  const date = new Date(utcString)
+  const date = new Date(dateString)
 
   if (Number.isNaN(date.getTime())) return '-'
 

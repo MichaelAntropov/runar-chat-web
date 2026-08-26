@@ -107,8 +107,7 @@ function handleUnauthorized() {
 function parseSessionDate(dateString: string | null): Date | null {
   if (!dateString) return null
 
-  const utcString = dateString.endsWith('Z') ? dateString : `${dateString}Z`
-  const date = new Date(utcString)
+  const date = new Date(dateString)
 
   return Number.isNaN(date.getTime()) ? null : date
 }
@@ -125,15 +124,11 @@ function isCurrentDeviceRemovalEligibleOnSubmit(): boolean {
   return isCurrentDeviceRemovalEligible()
 }
 
-// Helper to format dates, handles null values and forces UTC parsing
+// Helper to format dates and handle null values
 const formatDate = (dateString: string | null) => {
   if (!dateString) return '-'
 
-  // If the server string is missing the 'Z' (UTC marker), append it
-  // This forces JS to treat the parsed string as UTC rather than local time
-  const utcString = dateString.endsWith('Z') ? dateString : `${dateString}Z`
-
-  const date = new Date(utcString)
+  const date = new Date(dateString)
 
   return new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
